@@ -21,13 +21,16 @@ pio.renderers.default = 'browser'
 
 
 # start the dash app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.UNITED])
+app = dash.Dash(__name__,
+                external_stylesheets=[dbc.themes.UNITED],
+                meta_tags=[{"name": "viewport",
+                            "content": "width=device-width, initial-scale=1"}])
 app.config['suppress_callback_exceptions'] = True
+app.title = 'Investment Tools'
 
 # LAYOUT ----------------------------------------------------------------------
 app.layout = dbc.Container(
     [
-        # dcc.Store(id="store"),
         html.H1("Investment Tools"),
         html.Hr(),
 
@@ -42,6 +45,102 @@ app.layout = dbc.Container(
         ),
         html.Div(id="tab-content", className="p-4"),
     ]
+)
+
+
+CARD_STYLE = {
+    'font-size': 12
+    # "position": "fixed",
+    # "top": 0,
+    # "left": 0,
+    # "bottom": 0,
+    # "width": "16rem",
+    # "padding": "2rem 1rem",
+    # "background-color": "#f8f9fa",
+}
+# money = FormatTemplate.money(2)
+
+# CARDS -----------------------------------------------------------------------
+card_mtg_purchase = dbc.Card(
+    [
+        dbc.CardHeader("Mortgage Purchase"),
+        dbc.CardBody([
+            dbc.Row(
+                [
+                    dbc.Col(html.P("Purchase Date", className='card-text')),
+                    dbc.Col(dcc.DatePickerSingle(
+                                            id='start-date',
+                                            min_date_allowed=date(2022, 1, 1),
+                                            initial_visible_month=date(2022, 1, 1),
+                                            date=date(2022, 1, 1)
+                                        )),
+                ]),
+            html.P("Purchase Price", className="card-text"),
+            dcc.Input(id='price', type='number', value=900000,style={'format':'$0.00'}),
+            html.P("Deposit", className='card-text'),
+            dcc.Input(id='deposit', type='number', value=140000),
+        ],style = {'font-size':14}),
+    ], color="secondary",outline=True, className="mb-1"
+)
+
+card_mtg_payments = dbc.Card(
+    [   
+         dbc.CardHeader("Mortgage Payments"),
+         dbc.CardBody([
+             html.P("Payment Frequency", className='card-text'),
+             dcc.Dropdown(
+                          id='dd_freq',
+                          options=[
+                              {'label': 'Monthly', 'value': 'm'},
+                              {'label': 'Bi-Weekly', 'value': 'b'},
+                              ],
+                          value='m'
+                          ),
+             html.P("Payment", className='card-text'),
+             dcc.Input(id='payment', type='number', value=3500),
+             dbc.Row(
+                 [
+                     dbc.Col(html.P("Interest (annual %)", className='card-text')),
+                     dbc.Col(dcc.Input(id='ir_annual', type='number', min=0,
+                                       max=10, step=0.05, value=1.45)),
+                     ]),
+             # html.P("Interest (annual %)", className='card-text'),
+             # dcc.Input(id='ir_annual', type='number', min=0,
+             #                   max=10, step=0.05, value=1.45),
+        ],style = {'font-size':14})
+    ], color='secondary', outline=True, className="mb-1"
+)
+
+card_mtg_equity = dbc.Card(
+    [
+         dbc.CardHeader("Mortgage Equity"),
+         dbc.CardBody([
+             html.P("Appreciation (annual %)", className='card-text'),
+             dbc.Col(dcc.Input(id='apr_annual', type='number', min=-10,
+                               max=10, step=0.05, value=5.0)),
+             html.P("Real Estate Fee (%)", className='card-text'),
+             dbc.Col(dcc.Input(id='re_fee', type='number', min=0,
+                               max=10, step=0.05, value=5.0)),
+        ],style = {'font-size':14})
+    ], color='secondary', outline=True, className="mb-1"
+)
+
+card_rent = dbc.Card(
+    [
+     dbc.CardHeader("Rent Parameters"),
+     dbc.CardBody(
+         [
+             html.P("Rent (monthly)",className='card-text'),
+             dcc.Input(id='rent', type='number', min=0, max=10000, step=100, value=2500),
+             html.P("Maintainence Fees (monthly)",className='card-text'),
+             dcc.Input(id='main-fees', type='number', min=0, max=1500, step=50, value=650),
+             html.P("Taxes (annual)",className='card-text'),
+             dcc.Input(id='tax', type='number', min=0, max=10000, step=50, value=5500),
+             html.P("Investment Rate (Annual)",className='card-text'),
+             dcc.Input(id="inv-rate", type="number", min=-8, max=15, step=0.5, value=8.0)
+         ],style = {'font-size':14}
+    )
+    ], color='secondary', outline=True, className="mb-1"
 )
 
 
@@ -60,117 +159,21 @@ def render_tab_content(active_tab):
 
     if active_tab == "mortgage":
         return html.Div([
+            dbc.CardGroup([card_mtg_purchase,card_mtg_payments,card_mtg_equity]),
             dbc.Row(
                 [
-                    dbc.Col(html.H6("Price")),
-                    dbc.Col(dcc.Input(id='price', type='number', min=0, max=1000000, step=500, value=900000)),
-                    dbc.Col(html.H6("Deposit")),
-                    dbc.Col(dcc.Input(id='deposit', type='number', min=0, max=1000000, step=500, value=145000)),
-                    dbc.Col(html.H6("Payment")),
-                    dbc.Col(dcc.Input(id='payment', type='number', min=0, max=10000, step=100, value=3500)),
-                ]
-            ),
-            html.Br(),
-            dbc.Row(
-                [
-                    dbc.Col(html.H6("IR (annual)")),
-                    dbc.Col(dcc.Input(id='ir_annual', type='number', min=0, max=10, step=0.05, value=1.45)),
-                    dbc.Col(html.H6("APR (annual)")),
-                    dbc.Col(dcc.Input(id='apr_annual', type='number', min=-10, max=10, step=0.05, value=5.0)),
-                    dbc.Col(html.H6("Real Estate Fee")),
-                    dbc.Col(dcc.Input(id='re_fee', type='number', min=0, max=10, step=0.05, value=5.0)),
-                ]
-            ),
-            html.Br(),
-            dbc.Row(
-                [
-                    dbc.Col(html.H6("Start Date")),
-                    dbc.Col(dcc.DatePickerSingle(
-                                    id='start-date',
-                                    min_date_allowed=date(2022, 1, 1),
-                                    initial_visible_month=date(2022, 1, 1),
-                                    date=date(2022, 1, 1)
-                                )),
-                    dbc.Col(html.H6("Payment Frequency")),
-                    dbc.Col(dcc.Dropdown(
-                        id='dd_freq',
-                        options=[
-                            {'label': 'Monthly', 'value': 'm'},
-                            {'label': 'Bi-Weekly', 'value': 'b'},
-                            ],
-                        value='m'
-                        ))
-                ]
-            ),
-            html.Br(),
-            dbc.Row(
-                [
-                    dbc.Col(dcc.Graph(id='plot-amort'), width=8),
-                    dbc.Col(dcc.Markdown(id='md-amort'), width=4)
+                    dbc.Col(dcc.Graph(id='plot-amort',className = 'shadow-lg'), width=8),
+                    dbc.Col(dcc.Markdown(id='md-amort'), width=4,align = 'center')
                 ]
             )
         ])
     elif active_tab == "rent_vs_buy":
         return html.Div([
-            dbc.Row(
-                [
-                    dbc.Col(html.H6("Price")),
-                    dbc.Col(dcc.Input(id='price', type='number', min=0, max=1000000, step=500, value=900000)),
-                    dbc.Col(html.H6("Deposit")),
-                    dbc.Col(dcc.Input(id='deposit', type='number', min=0, max=1000000, step=500, value=145000)),
-                    dbc.Col(html.H6("Payment")),
-                    dbc.Col(dcc.Input(id='payment', type='number', min=0, max=10000, step=100, value=3500)),
-                ]
-            ),
-            html.Br(),
-            dbc.Row(
-                [
-                    dbc.Col(html.H6("IR (annual)")),
-                    dbc.Col(dcc.Input(id='ir_annual', type='number', min=0, max=10, step=0.05, value=1.45)),
-                    dbc.Col(html.H6("APR (annual)")),
-                    dbc.Col(dcc.Input(id='apr_annual', type='number', min=-10, max=10, step=0.05, value=5.0)),
-                    dbc.Col(html.H6("Real Estate Fee")),
-                    dbc.Col(dcc.Input(id='re_fee', type='number', min=0, max=10, step=0.05, value=5.0)),
-                ]
-            ),
-            html.Br(),
-            dbc.Row(
-                [
-                    dbc.Col(html.H6("Start Date")),
-                    dbc.Col(dcc.DatePickerSingle(
-                                    id='start-date',
-                                    min_date_allowed=date(2022, 1, 1),
-                                    initial_visible_month=date(2022, 1, 1),
-                                    date=date(2022, 1, 1)
-                                )),
-                    dbc.Col(html.H6("Payment Frequency")),
-                    dbc.Col(dcc.Dropdown(
-                        id='dd_freq',
-                        options=[
-                            {'label': 'Monthly', 'value': 'm'},
-                            {'label': 'Bi-Weekly', 'value': 'b'},
-                            ],
-                        value='m'
-                        ))
-                ]
-            ),
-            html.Br(),
-            dbc.Row(
-                [
-                    dbc.Col(html.H6("Rent (monthly)")),
-                    dbc.Col(dcc.Input(id='rent', type='number', min=0, max=10000, step=100, value=2500)),
-                    dbc.Col(html.H6("Fees (monthly)")),
-                    dbc.Col(dcc.Input(id='main-fees', type='number', min=0, max=1500, step=50, value=650)),
-                    dbc.Col(html.H6("Taxes (annual)")),
-                    dbc.Col(dcc.Input(id='tax', type='number', min=0, max=10000, step=50, value=5500)),
-                    dbc.Col(html.H6("Invest Rate(annual)")),
-                    dbc.Col(dcc.Input(id="inv-rate", type="number", min=-8, max=15, step=0.5, value=8.0))
-                ]
-            ),
+            dbc.CardGroup([card_mtg_purchase, card_mtg_payments, card_mtg_equity, card_rent]),
             html.Br(),
             dbc.Row(
                     [
-                        dbc.Col(dcc.Graph(id='plot-rent-vs-buy'), width=8),
+                        dbc.Col(dcc.Graph(id='plot-rent-vs-buy',className="shadow-lg"), width=8),
                         dbc.Col(dcc.Markdown(id='md-rent-vs-buy'), width=4)
                     ]
                 )
