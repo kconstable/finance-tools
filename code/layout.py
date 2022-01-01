@@ -48,46 +48,31 @@ app.layout = dbc.Container(
 )
 
 
-CARD_STYLE = {
-    'font-size': 12
-    # "position": "fixed",
-    # "top": 0,
-    # "left": 0,
-    # "bottom": 0,
-    # "width": "16rem",
-    # "padding": "2rem 1rem",
-    # "background-color": "#f8f9fa",
-}
-# money = FormatTemplate.money(2)
+
 
 # CARDS -----------------------------------------------------------------------
 card_mtg_purchase = dbc.Card(
     [
         dbc.CardHeader("Mortgage Purchase"),
         dbc.CardBody([
-            dbc.Row(
-                [
-                    dbc.Col(html.P("Purchase Date", className='card-text')),
-                    dbc.Col(dcc.DatePickerSingle(
-                                            id='start-date',
-                                            min_date_allowed=date(2022, 1, 1),
-                                            initial_visible_month=date(2022, 1, 1),
-                                            date=date(2022, 1, 1)
-                                        )),
-                ]),
-            html.P("Purchase Price", className="card-text"),
-            dcc.Input(id='price', type='number', value=900000,style={'format':'$0.00'}),
-            html.P("Deposit", className='card-text'),
-            dcc.Input(id='deposit', type='number', value=140000),
-        ],style = {'font-size':14}),
-    ], color="secondary",outline=True, className="mb-1"
+            html.P("Purchase Price", className="card-subtitle pt-2"),
+            dcc.Input(id='price', type='number', value=900000, min=100000,
+                      max=1000000, step=50000, style={'format': '$0.00'}),
+            html.P("Deposit", className='card-subtitle pt-2'),
+            dcc.Input(id='deposit', type='number', value=140000, min=0,
+                      max=250000, step=10000),
+            html.P("Interest (annual %)", className='card-subtitle pt-2'),
+            dcc.Input(id='ir_annual', type='number', min=0,
+                      max=10, step=0.05, value=1.45),
+        ], style={'font-size': 14}),
+    ], color="secondary", outline=True, className="mb-1"
 )
 
 card_mtg_payments = dbc.Card(
-    [   
+    [
          dbc.CardHeader("Mortgage Payments"),
          dbc.CardBody([
-             html.P("Payment Frequency", className='card-text'),
+             html.P("Payment Frequency", className='card-subtitle'),
              dcc.Dropdown(
                           id='dd_freq',
                           options=[
@@ -96,32 +81,26 @@ card_mtg_payments = dbc.Card(
                               ],
                           value='m'
                           ),
-             html.P("Payment", className='card-text'),
-             dcc.Input(id='payment', type='number', value=3500),
-             dbc.Row(
-                 [
-                     dbc.Col(html.P("Interest (annual %)", className='card-text')),
-                     dbc.Col(dcc.Input(id='ir_annual', type='number', min=0,
-                                       max=10, step=0.05, value=1.45)),
-                     ]),
-             # html.P("Interest (annual %)", className='card-text'),
-             # dcc.Input(id='ir_annual', type='number', min=0,
-             #                   max=10, step=0.05, value=1.45),
-        ],style = {'font-size':14})
+             html.P("Payment", className='card-subtitle pt-2'),
+             dcc.Input(id='payment', type='number', value=3500, min=500,
+                       max=6000, step=100),
+             ], style={'font-size': 14}
+         )
     ], color='secondary', outline=True, className="mb-1"
 )
 
 card_mtg_equity = dbc.Card(
     [
          dbc.CardHeader("Mortgage Equity"),
-         dbc.CardBody([
-             html.P("Appreciation (annual %)", className='card-text'),
-             dbc.Col(dcc.Input(id='apr_annual', type='number', min=-10,
-                               max=10, step=0.05, value=5.0)),
-             html.P("Real Estate Fee (%)", className='card-text'),
-             dbc.Col(dcc.Input(id='re_fee', type='number', min=0,
-                               max=10, step=0.05, value=5.0)),
-        ],style = {'font-size':14})
+         dbc.CardBody(
+            [
+             html.P("Appreciation (annual %)", className='card-subtitle'),
+             dcc.Input(id='apr_annual', type='number', min=-10,
+                       max=10, step=0.05, value=5.0),
+             html.P("Real Estate Fee (%)", className='card-subtitle pt-2'),
+             dcc.Input(id='re_fee', type='number', min=0,
+                       max=10, step=0.05, value=5.0),
+            ], style={'font-size': 14})
     ], color='secondary', outline=True, className="mb-1"
 )
 
@@ -130,15 +109,47 @@ card_rent = dbc.Card(
      dbc.CardHeader("Rent Parameters"),
      dbc.CardBody(
          [
-             html.P("Rent (monthly)",className='card-text'),
+             html.P("Rent (monthly)", className='card-subtitle'),
              dcc.Input(id='rent', type='number', min=0, max=10000, step=100, value=2500),
-             html.P("Maintainence Fees (monthly)",className='card-text'),
+             html.P("Maintainence Fees (monthly)", className='card-subtitle pt-2'),
              dcc.Input(id='main-fees', type='number', min=0, max=1500, step=50, value=650),
-             html.P("Taxes (annual)",className='card-text'),
+             html.P("Taxes (annual)", className='card-subtitle pt-2'),
              dcc.Input(id='tax', type='number', min=0, max=10000, step=50, value=5500),
-             html.P("Investment Rate (Annual)",className='card-text'),
+             html.P("Investment Rate (Annual)", className='card-subtitle pt-2'),
              dcc.Input(id="inv-rate", type="number", min=-8, max=15, step=0.5, value=8.0)
-         ],style = {'font-size':14}
+         ], style={'font-size': 14}
+    ) 
+    ], color='secondary', outline=True, className="mb-1"
+)
+
+card_lump = dbc.Card(
+    [
+     dbc.CardHeader("Lump Sum Payments"),
+     dbc.CardBody(
+         [
+             html.P("Amount", className='card-subtitle'),
+             dcc.Input(id='lump-sum', type='number', min=0, max=50000,
+                       step=100, value=1000),
+             html.P("Date of Payment", className='card-subtitle pt-2'),
+             dcc.Input(id='lump-date', type='text', value='yyyy-mm-dd'),
+             html.Br(),
+             html.Button("Add Payment", id='add-payment', n_clicks=0,
+                         className='btn btn-primary mt-2')
+         ], style={'font-size': 14}
+    )
+    ], color='secondary', outline=True, className="mb-1"
+)
+
+card_scenario = dbc.Card(
+    [
+     dbc.CardHeader("Scenarios"),
+     dbc.CardBody(
+         [
+             html.P("Name", className='card-subtitle'),
+             dcc.Input(id='scenario-name', type='text', value='Base'),
+             html.Button("Add Scenario", id='add-scenario', n_clicks=0,
+                         className='btn btn-primary mt-2')
+         ], style={'font-size': 14}
     )
     ], color='secondary', outline=True, className="mb-1"
 )
@@ -159,11 +170,12 @@ def render_tab_content(active_tab):
 
     if active_tab == "mortgage":
         return html.Div([
-            dbc.CardGroup([card_mtg_purchase,card_mtg_payments,card_mtg_equity]),
+            dbc.CardGroup([card_mtg_purchase, card_mtg_payments, card_mtg_equity, card_lump,card_scenario]),
+            html.Br(),
             dbc.Row(
                 [
-                    dbc.Col(dcc.Graph(id='plot-amort',className = 'shadow-lg'), width=8),
-                    dbc.Col(dcc.Markdown(id='md-amort'), width=4,align = 'center')
+                    dbc.Col(dcc.Graph(id='plot-amort', className='shadow-lg'), width=8),
+                    dbc.Col(dcc.Markdown(id='md-amort'), width=4, align='center')
                 ]
             )
         ])
@@ -173,7 +185,7 @@ def render_tab_content(active_tab):
             html.Br(),
             dbc.Row(
                     [
-                        dbc.Col(dcc.Graph(id='plot-rent-vs-buy',className="shadow-lg"), width=8),
+                        dbc.Col(dcc.Graph(id='plot-rent-vs-buy', className="shadow-lg"), width=8),
                         dbc.Col(dcc.Markdown(id='md-rent-vs-buy'), width=4)
                     ]
                 )
@@ -187,7 +199,6 @@ def render_tab_content(active_tab):
 
 @app.callback(
     [Output("plot-amort", 'figure'), Output('md-amort', 'children')], [
-        Input('start-date', 'date'),
         Input('price', 'value'),
         Input('deposit', 'value'),
         Input('payment', 'value'),
@@ -197,15 +208,18 @@ def render_tab_content(active_tab):
         Input('dd_freq', 'value')
         ]
     )
-def plot_amortization(start_date, price, deposit, payment, ir, apr, fee, freq):
+def plot_amortization(price, deposit, payment, ir, apr, fee, freq):
+    
+    # get the current date
+    start_date = date.today()
     # get the schedule
-    df = loan_calc.get_amortization(start_date, price, deposit, payment, 25,
+    df, end_date = loan_calc.get_amortization(start_date, price, deposit, payment, 25,
                                     ir, apr, freq, fee)
 
     # update the markdown summary
     total_int = df.interest.sum()
     end_equity = df.equity.max()
-    diff = relativedelta(df.date.max(), df.date.min())
+    diff = relativedelta(end_date, df.date.min())
     payback = f"{diff.years} Years, {diff.months} Months"
 
     md = f"""
@@ -216,7 +230,7 @@ def plot_amortization(start_date, price, deposit, payment, ir, apr, fee, freq):
     > **Payback Period:** {payback}
     """
 
-    fig = loan_calc.plot_amortization(df, yrs=[5, 10])
+    fig = loan_calc.plot_amortization(df, end_date, yrs=[5, 10, 15])
 
     return fig, md
 
@@ -226,7 +240,6 @@ def plot_amortization(start_date, price, deposit, payment, ir, apr, fee, freq):
      Input("main-fees" ,"value"),
      Input("tax", "value"),
      Input("inv-rate","value"),
-     Input('start-date','date'),
      Input('price', 'value'),
      Input('deposit', 'value'),
      Input('payment','value'),
@@ -236,16 +249,46 @@ def plot_amortization(start_date, price, deposit, payment, ir, apr, fee, freq):
      Input('dd_freq', 'value')
      ]
     )
-def plot_rent_vs_buy(rent, fee, tax,inv_rate, start_date,price, deposit, payment,
-                     ir,apr, re_fee,freq):
+def plot_rent_vs_buy(rent, fee, tax, inv_rate, price, deposit, payment,
+                     ir, apr, re_fee, freq):
+
+    # get the current date
+    start_date = date.today()
     
-    df = loan_calc.get_rent_vs_own(start_date, price, deposit, payment, 25, ir, apr, freq,
-                          re_fee, rent, inv_rate,
-                          fee, tax)
+    # get the amortization schedule
+    df = loan_calc.get_rent_vs_own(start_date, price, deposit, payment, 25,
+                                   ir, apr, freq, re_fee, rent, inv_rate,
+                                   fee, tax)
+    # create the plot
     fig = loan_calc.plot_rent_vs_own(df)
-    md = """ TBD """
+
+    # calculate values for the summary markdown
+    if freq=='m':
+        frequency='Monthly'
+        diff_payments = payment - rent
+        taxes = tax/12
+        main = fee
+    else:
+        frequency='Bi-Weekly'
+        diff_payments = payment - rent
+        taxes = tax/24
+        main = fee/2
+        
+    md = f"""
+    #### Rent Vs Buy
+    This plot compares purchasing a home vs renting.  Owning a home requires additional 
+    costs which are invested in the stock market for comparision.  
+    
+    **Invest in the Stock Market**  (Annual Return Assumption {inv_rate:.2f}%)
+    + Downpayment:${deposit:,.0f}
+    + Maintenence Fees ({frequency}):${main:,.0f}
+    + Taxes ({frequency}):${taxes:,.0f}
+    + Difference in Mortgage Payments vs Rent:${diff_payments:,.0f}
+    
+    **Mortgage Equity**  
+    Equity is calculated as the difference in home value (annual appreciation 
+    rate of {apr:.2f}%), less the outstanding mortgage and real estate fees of
+    {re_fee:.2f}%.
+    """
     
     return fig, md
-    
-    
-    

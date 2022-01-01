@@ -6,7 +6,7 @@ Created on Mon Dec 28 11:29:28 2020
 """
 
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import timedelta, date
 from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -16,11 +16,11 @@ pio.renderers.default = 'browser'
 # Mortgage Constants
 IR = 1.45
 YRS = 25
-PAY = 3500
+PAY = 3000
 PRICE = 900000
-DEPOSIT = 145000
+DEPOSIT = 140000
 APP_RATE = 5.0
-START_DATE = '2022-01-01'
+START_DATE = date.today()
 RE_FEES = 5.0
 
 # Rent Constants
@@ -51,7 +51,7 @@ def get_periods(start_date, yrs=25, frequency='m'):
     """
 
     # get end date
-    end_date = datetime.strptime(start_date, '%Y-%m-%d') + timedelta(days=yrs * 365)
+    end_date = start_date + timedelta(days=yrs*365)
 
     # create the list of date ranges
     if frequency == 'm':
@@ -183,11 +183,14 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
             end_date = df.at[idx, 'date']
             break
 
-    # return the dataframe between the start/end dates
-    return df[df.date <= end_date]
+    # return the dataframe, exclcude nan rows (happens
+    # when the mortgage isn't paid after 25 years)
+    df = df[~df.date.isnull()]
+    return df, end_date
 
 
-def plot_amortization(df_amort, yrs=[5, 10]):
+
+def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     """
     Plot the amortization schedule (ending balance + cumulative interest)
 
@@ -212,17 +215,17 @@ def plot_amortization(df_amort, yrs=[5, 10]):
 
     # get the number of years to pay-off
     if df.end.min() > 0:
-        diff_yrs = "> 25 Years"
+        diff_yrs = "> 25 "
     else:
-        diff = relativedelta(df.date.max(), df.date.min())
+        diff = relativedelta(end_date, df.date.min())
         diff_yrs = str(diff.years)
 
-    # get cumulative interest, equity
+    # get cumulative interest
     df['cum_interest'] = df.interest.cumsum()
-    end_equity = round(df.at[df.index.max(), 'equity'], 0)
+    total_interest = df.interest.sum()
 
     # sub-title text
-    subtitle = f'Amortization:{diff_yrs} Years | Ending Equity:${end_equity:,.0f}'
+    subtitle = f'Amortization:{diff_yrs} Years | Total Interest:${total_interest:,.0f}'
 
     # get the annotation data based on yrs
     d = {}
@@ -231,14 +234,14 @@ def plot_amortization(df_amort, yrs=[5, 10]):
             p = y * 12
             try:
                 d[y] = {'date': df.at[p, 'date'], 'mtg': df.at[p, 'end'],
-                        'name': f'After {y} Years'}
+                        'name': f'{y} Years'}
             except:
                 continue
         else:
             p = y * 24
             try:
                 d[y] = {'date': df.at[p, 'date'], 'mtg': df.at[p, 'end'],
-                        'name': f'After {y} Years'}
+                        'name': f'{y} Years'}
             except:
                 continue
 
@@ -303,16 +306,19 @@ def plot_amortization(df_amort, yrs=[5, 10]):
         )
     )
 
-    # fig.show()
     return fig
 
 
 def get_rent_vs_own(start_date, price, deposit, payment, yrs, int_rate, app_rate,
                     frequency, re_fees, monthly_rent,
                     inv_rate, monthly_main, annual_tax):
+    
     # get the mortgage amortization schedule
-    df = get_amortization(start_date, price, deposit, payment, yrs, int_rate,
-                          app_rate, frequency, re_fees)
+    df, end_date = get_amortization(start_date, price, deposit, payment, yrs, int_rate,
+                                    app_rate, frequency, re_fees)
+
+    # remove rows after the mortgage amortization is complete
+    df = df[df.date <= end_date]
 
     # add investment columns
     df['invest_start'] = 0
@@ -347,16 +353,20 @@ def get_rent_vs_own(start_date, price, deposit, payment, yrs, int_rate, app_rate
             invest = df.at[idx, 'invest_start'] + tax + main + (payment - rent)
             df.at[idx, 'invest_end'] = invest * (1 + inv)
             df.at[idx + 1, 'invest_start'] = invest * (1 + inv)
+        # if df.at[idx, 'equity'] > df.at[idx, 'invest_end']:
         if cross_over is True and df.at[idx, 'equity'] > df.at[idx, 'invest_end']:
             cross_over = False
             df.at[idx, 'cross_over'] = 1
+            
+    # when the mortgage isn't paid after 25 years)
+    df = df[~df.date.isnull()]
 
     return df
 
 
 def plot_rent_vs_own(df):
     """
-    
+
 
     Parameters
     ----------
@@ -373,10 +383,10 @@ def plot_rent_vs_own(df):
         cross_over_idx = df[df.cross_over == 1].index.item()
         cross_over_date = df.at[cross_over_idx, 'date']
         cross_over_value = df.at[cross_over_idx, 'equity']
-        
+
         # calculate the number of years before cross-over
         diff = relativedelta(cross_over_date, df.date.min())
-        diff_str = f"Break-Even:{diff.years} Year(s)|{diff.months} Month(s)"
+        diff_str = f"{diff.years} Year(s)|{diff.months} Month(s)"
     except:
         cross_over_idx = None
 
@@ -435,10 +445,10 @@ def plot_rent_vs_own(df):
     return fig
 
 
-# df = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
+# df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
 # 'm',RE_FEES)
-# df = get_rent_vs_own(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE, 'm',
-#                      RE_FEES, MONTHLY_RENT, ANNUAL_INVEST_RATE,
-#                       MONTHLY_FEES, ANNUAL_TAX)
+df = get_rent_vs_own(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE, 'm',
+                      RE_FEES, MONTHLY_RENT, ANNUAL_INVEST_RATE,
+                      MONTHLY_FEES, ANNUAL_TAX)
 # plot_rent_vs_own(df)
-# plot_amortization(df, [5,10,20])
+# plot_amortization(df,end_date, [5,10,20])
