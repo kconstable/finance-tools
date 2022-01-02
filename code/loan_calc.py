@@ -6,8 +6,9 @@ Created on Mon Dec 28 11:29:28 2020
 """
 
 import pandas as pd
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from dateutil.relativedelta import relativedelta
+import calendar
 import plotly.graph_objects as go
 import plotly.io as pio
 
@@ -22,6 +23,10 @@ DEPOSIT = 140000
 APP_RATE = 5.0
 START_DATE = date.today()
 RE_FEES = 5.0
+PRE_PAYMENTS = [{'date': '2024-06-01', 'value': 10000},
+                {'date': '2026-12-22', 'value': 15000}
+                ]
+
 
 # Rent Constants
 ANNUAL_INVEST_RATE = 6.0
@@ -91,7 +96,7 @@ def get_georeturn(rate, frequency):
 
 
 def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rate,
-                     frequency, re_fees):
+                     frequency, re_fees, prepayments=None):
     """
     Creates an amortization schedule for a mortgage repayment. Assumes monthly
     or bi-weekly (15th, last of month) payments. Adjust payment according to
@@ -140,10 +145,30 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
     df['frequency'] = frequency
     df['start'] = 0.0
     df['payment'] = 0.0
+    df['prepayment'] = 0.0
     df['interest'] = 0.0
     df['end'] = 0.0
     df['value'] = 0.0
     df['equity'] = 0.0
+
+    # add prepayments
+    if prepayments is not None:
+        for prepayment in prepayments:
+            # get the date as string
+            str_date = prepayment['date']
+
+            # parse the month/year
+            pay_date = datetime.strptime(str_date, '%Y-%m-%d').date()
+            pay_mth = pay_date.month
+            pay_yr = pay_date.year
+            pay_day = calendar.monthrange(pay_yr, pay_mth)[1]
+            dt = str(date(pay_yr, pay_mth, pay_day))
+
+            # get the index value for that date
+            idx = df[df.date == dt].index.values.astype(int)[0]
+
+            # add the pre-payment at the month-end date
+            df.at[idx, 'prepayment'] = prepayment['value']
 
     # create the amortization schedule
     for idx, row in df.iterrows():
@@ -155,10 +180,10 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
             value = price
 
         # calc interest
-        int_pay = (df.at[idx, 'start'] - payment) * ir
+        int_pay = (df.at[idx, 'start'] - payment - df.at[idx, 'prepayment']) * ir
 
         # calc end balance
-        end = df.at[idx, 'start'] + int_pay - payment
+        end = df.at[idx, 'start'] + int_pay - payment - df.at[idx, 'prepayment']
 
         # calc appreciation
         value = value * (1 + app)
@@ -428,10 +453,9 @@ def plot_rent_vs_own(df):
         title='Rent Vs Buy: Equity Projection',
         template='plotly_white',
         width=800,
-        height=500,
+        height=450,
         hovermode="x unified",
         font=dict(size=20),
-        xaxis_title="Date",
         yaxis_title='Equity',
         legend=dict(
             yanchor='bottom',
@@ -446,9 +470,10 @@ def plot_rent_vs_own(df):
 
 
 # df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
-# 'm',RE_FEES)
-df = get_rent_vs_own(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE, 'm',
-                      RE_FEES, MONTHLY_RENT, ANNUAL_INVEST_RATE,
-                      MONTHLY_FEES, ANNUAL_TAX)
+# 'm',RE_FEES,PRE_PAYMENTS)
+# df = get_rent_vs_own(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE, 'm',
+#                       RE_FEES, MONTHLY_RENT, ANNUAL_INVEST_RATE,
+#                       MONTHLY_FEES, ANNUAL_TAX)
 # plot_rent_vs_own(df)
-# plot_amortization(df,end_date, [5,10,20])
+# fig = plot_amortization(df,end_date, [5,10,20])
+# fig.show()
