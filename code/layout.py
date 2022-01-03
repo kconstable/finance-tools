@@ -14,6 +14,7 @@ import dash_core_components as dcc
 from dash.dependencies import Input, Output, State
 from datetime import date
 from dateutil.relativedelta import relativedelta
+import pandas as pd
 import loan_calc
 
 # Render plots in a browswer
@@ -128,9 +129,9 @@ card_prepayments = dbc.Card(
          [
              html.P("Amount", className='card-subtitle'),
              dcc.Input(id='prepay', type='number', min=0, max=100000,
-                       step=1000, value=10000),
+                       step=1000, placeholder=10000),
              html.P("Date of Payment", className='card-subtitle pt-2'),
-             dcc.Input(id='prepay-date', type='text', value='yyyy-mm-dd'),
+             dcc.Input(id='prepay-date', type='text', placeholder='yyyy-mm-dd'),
              html.Br(),
              html.Button("Add Payment", id='add-prepay', n_clicks=0,
                          className='btn btn-primary mt-2'),
@@ -148,12 +149,12 @@ card_scenario = dbc.Card(
      dbc.CardBody(
          [
              html.P("Name", className='card-subtitle'),
-             dcc.Input(id='scenario-name', type='text', value='Base'),
+             dcc.Input(id='scenario-name', type='text', placeholder='Scenario Name'),
              html.Button("Add Scenario", id='add-scenario', n_clicks=0,
                          className='btn btn-primary mt-2'),
              html.Button("Reset", id='reset-scenario', n_clicks=0,
                          className='btn btn-primary mt-2 ms-2'),
-             dcc.Store(id='store-scenario', data=[], storage_type='memory')
+             dcc.Store(id='scenario-store', data=[], storage_type='memory')
          ], style={'font-size': 14}
      )
     ], color='secondary', outline=True, className="mb-1"
@@ -206,7 +207,8 @@ def render_tab_content(active_tab):
     [
      Output("plot-amort", 'figure'),
      Output('md-amort', 'children'),
-     Output('prepay-store', 'data')
+     Output('prepay-store', 'data'),
+     Output('scenario-store', 'data')
     ],
     [
      Input('price', 'value'),
@@ -216,15 +218,20 @@ def render_tab_content(active_tab):
      Input('apr_annual', 'value'),
      Input('re_fee', 'value'),
      Input('dd_freq', 'value'),
-     Input('add-prepay', 'n_clicks'),
-     Input('reset-prepay', 'n_clicks'),
+     Input('add-prepay', 'n_clicks'),  # add prepay button click
+     Input('reset-prepay', 'n_clicks'),  # reset prepay button click
      State('prepay', 'value'),
      State('prepay-date', 'value'),
-     State('prepay-store', 'data')
+     State('prepay-store', 'data'),  # prepay-store is also input
+     Input('add-scenario', 'n_clicks'),  # add scenario button click
+     Input('reset-scenario', 'n_clicks'),  # reset scenario button click
+     State('scenario-name', 'value'),
+     State('scenario-store', 'data')  # scenario-store is also input
     ]
 )
 def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
-                      n_prepay_reset, prepay_value, prepay_date, prepay_store):
+                      n_prepay_reset, prepay_value, prepay_date, prepay_store,
+                      n_scenario, n_scenario_reset, scenario_name, scenario_store):
 
     # get a list of id's that changed
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
@@ -232,6 +239,7 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
     # get the current date
     start_date = date.today()
 
+    # get/add prepayments
     if n_prepay >= 1:
         if prepay_store is None:
             # create the first store
@@ -248,11 +256,36 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
     # if the reset prepayment button was clicked
     if 'reset-prepay' in changed_id:
         prepay_store = None
-
-    # get the schedule
+        
+    # init the scenario_store to None
+    # or when the reset button is pushed    
+    if n_scenario == 0 or ('reset-scenario' in changed_id):
+        scenario_store = None
+        
+    # get schedule
     df, end_date = loan_calc.get_amortization(start_date, price, deposit,
-                                              payment, 25, ir, apr, freq, fee,
-                                              prepay_store)
+                                              payment, 25, ir, apr, freq,
+                                              fee, prepay_store, scenario_store)
+    tmp=''
+    tmp2=''
+    # get/add scenarios
+    if 'add-scenario' in changed_id:
+        if scenario_store is None:
+            # create the first scenario_store
+            scenario_store = loan_calc.save_scenario(df, scenario_name, None)
+            
+            df_tmp = pd.DataFrame(scenario_store)
+            tmp =  ' '.join(df_tmp.columns)
+            tmp2 = str(df_tmp.date.min())+" " + str(df_tmp['scenario-'+scenario_name].max())
+        else:
+            # get new scenario, add to the scenario_store
+            scenario_store = loan_calc.save_scenario(df, scenario_name, scenario_store)
+                    
+            df_tmp = pd.DataFrame(scenario_store)
+            tmp =  ' '.join(df_tmp.columns)
+            tmp2 = str(df_tmp.date.min())+" " + str(df_tmp['scenario-'+scenario_name].max())
+            
+            
     # update the markdown summary
     total_int = df.interest.sum()
     end_equity = df.equity.max()
@@ -265,7 +298,7 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
     if prepay_store is not None:
         prepay_str_title = """**Prepayments** """
         for prepayment in prepay_store:
-            prepay_str += "${:,.0f} on {}  ".format(prepayment['value'],prepayment['date'])
+            prepay_str += "${:,.0f} on {} | ".format(prepayment['value'],prepayment['date'])
 
     # summary text for markdown
     md = f"""
@@ -277,11 +310,13 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
     
     {prepay_str_title}  
     {prepay_str}  
+    {tmp}
+    {tmp2}
     """
     # create the plot
     fig = loan_calc.plot_amortization(df, end_date, yrs=[5, 10, 15])
 
-    return fig, md, prepay_store
+    return fig, md, prepay_store, scenario_store
 
 @app.callback(
     [Output("plot-rent-vs-buy", "figure"), Output("md-rent-vs-buy", "children")],
@@ -342,40 +377,7 @@ def plot_rent_vs_buy(rent, fee, tax, inv_rate, price, deposit, payment,
     
     return fig, md
 
-# @app.callback(
-#     [Output('prepay-store', 'data'),Output('plot-amort', 'figure')],
-#     Input('add-prepay', 'n_clicks'),
-#     [State('prepay-date', 'value'), 
-#       State('prepay', 'value'),
-#       State('price', 'value'),
-#       State('deposit', 'value'),
-#       State('payment', 'value'),
-#       State('ir_annual', 'value'),
-#       State('apr_annual', 'value'),
-#       State('re_fee', 'value'),
-#       State('dd_freq', 'value')
-#       ],
-    
-# )
-# def store_prepay_data(n, prepay_date, prepay_value, price, deposit, 
-#                       payment, ir, apr, fee, freq):
-    
-#     # update the dataset
-#     prepay = {'date': prepay_date, 'value': prepay_value}
-    
-#     # get the current date
-#     start_date = date.today()
-    
-#     # get the schedule
-#     df, end_date = loan_calc.get_amortization(start_date, price, deposit, payment, 25,
-#                                     ir, apr, freq, fee, prepay)
-    
-    
-    
-#     fig = loan_calc.plot_amortization(df, end_date)
-        
-#     PREPAYMENTS.append(prepay)
-    
-#     return prepay, fig
+
+
 
     

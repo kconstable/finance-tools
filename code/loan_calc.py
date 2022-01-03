@@ -96,7 +96,7 @@ def get_georeturn(rate, frequency):
 
 
 def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rate,
-                     frequency, re_fees, prepayments=None):
+                     frequency, re_fees, prepayments=None, scenarios=None):
     """
     Creates an amortization schedule for a mortgage repayment. Assumes monthly
     or bi-weekly (15th, last of month) payments. Adjust payment according to
@@ -208,11 +208,23 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
             end_date = df.at[idx, 'date']
             break
 
+    # add scenarios if provided
+    if scenarios is not None:
+        # add the scenarios
+        # scenario_store will be a list of dicts, convert to df
+        scenarios_df = pd.DataFrame(scenarios)
+
+        df = df.set_index('date').join(scenarios_df.set_index('date'))
+        df.reset_index(inplace=True)
+        df.rename(columns={"index": "date"},inplace=True)
+    
+    print(df)
+        
+
     # return the dataframe, exclcude nan rows (happens
     # when the mortgage isn't paid after 25 years)
     df = df[~df.date.isnull()]
     return df, end_date
-
 
 
 def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
@@ -315,6 +327,22 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
             borderpad=4,
             bgcolor="#ff7f0e"
         )
+
+    # add scenarios if provided
+    scenarios = [c for c in df.columns if 'scenario' in c]
+    colors = ['orange', 'gold', 'brown', 'crimson']
+    dash = ['dash', 'dot', 'dashdot', 'longdash']
+    if len(scenarios) >= 1:
+        for i, scen in enumerate(scenarios):
+            tmp = str(df[scen].max())
+            fig.add_trace(
+                go.Scatter(
+                    name=scen+tmp,
+                    x=df.date,
+                    y=df[scen],
+                    line=dict(color=colors[i], dash=dash[i], width=3)
+                )
+            )
 
     fig.update_layout(
         title='Mortgage Amortization',
@@ -469,11 +497,77 @@ def plot_rent_vs_own(df):
     return fig
 
 
+def save_scenario(df, scenario_name, scenarios=None):
+    """
+    
+
+    Parameters
+    ----------
+    df : TYPE
+        DESCRIPTION.
+    scenario_name : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    # save the current scenario
+    scen_name = 'scenario-' + scenario_name
+    df_new = df[['date', 'end']]
+    df_new.columns = ['date', scen_name]
+    
+    # combine with exisitng scenarios
+    if scenarios is not None:
+        df_old = pd.DataFrame(scenarios)
+        df_new = df_old.set_index('date').join(df_new.set_index('date'),rsuffix='_new', lsuffix='_old', how='left')
+        df_new.reset_index(inplace=True)
+        df_new.rename(columns={"index": "date"},inplace=True)
+
+    return df_new.to_dict('records')
+    
+    
+    
+
+
+# # get init schedule
 # df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
-# 'm',RE_FEES,PRE_PAYMENTS)
+# 'm',RE_FEES,PRE_PAYMENTS, None)
+
+# # first save - create the scenario_store with active params
+# s = save_scenario(df, '1', None)  #dict
+
+
+# # next scenario- change params
+# PAY = 4000
+# IR = 1.8
+# df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
+# 'm',RE_FEES,PRE_PAYMENTS, s)
+
+# # save + combine scenarios
+# s = save_scenario(df, '2', s)
+
+
+
+# PAY = 3800
+# IR = 1.5
+# df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
+# 'm',RE_FEES,PRE_PAYMENTS, s)
+
+# s = save_scenario(df, '3', s)
+
+
+# # creats the plot
+# fig = plot_amortization(df,end_date, [5,10,20])
+# fig.show()
+
+
+
+# rent vs own
 # df = get_rent_vs_own(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE, 'm',
 #                       RE_FEES, MONTHLY_RENT, ANNUAL_INVEST_RATE,
 #                       MONTHLY_FEES, ANNUAL_TAX)
 # plot_rent_vs_own(df)
-# fig = plot_amortization(df,end_date, [5,10,20])
-# fig.show()
+
