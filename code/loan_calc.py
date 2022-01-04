@@ -214,12 +214,11 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
         # scenario_store will be a list of dicts, convert to df
         scenarios_df = pd.DataFrame(scenarios)
 
-        df = df.set_index('date').join(scenarios_df.set_index('date'))
-        df.reset_index(inplace=True)
-        df.rename(columns={"index": "date"},inplace=True)
-    
-    print(df)
-        
+        # join scenarios with current df (based on index=> this should
+        # be switched to date to account for bi-weekly/monthly scenarios
+        df = df.join(scenarios_df, how='left', lsuffix='_main', rsuffix='_scenarios')
+        df.rename(columns={'date_main': 'date'}, inplace=True)
+        df.drop(columns=('date_scenarios'), inplace=True)
 
     # return the dataframe, exclcude nan rows (happens
     # when the mortgage isn't paid after 25 years)
@@ -285,6 +284,7 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     # create plots
     fig = go.Figure()
 
+    # outstanding mortgage
     fig.add_trace(
         go.Scatter(
             name='Mortgage',
@@ -295,12 +295,15 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
             hovertemplate=None
         )
     )
+
+    # cumulative interest
     fig.add_trace(
-        go.Bar(
+        go.Scatter(
             name='Interest',
             x=df.date,
             y=df.cum_interest,
-            marker_line_color='orange',
+            line=dict(color='#E95420'),
+            fill='tozeroy',
             hovertemplate=None
         )
     )
@@ -313,7 +316,6 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
         font=dict(size=18)
 
     )
-
     # add yearly annotation
     for k, v in d.items():
         fig.add_annotation(
@@ -325,19 +327,18 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
             bordercolor="#536872",
             borderwidth=2,
             borderpad=4,
-            bgcolor="#ff7f0e"
+            bgcolor="#E95420",
+            font=dict(color='#ffffff')
         )
-
     # add scenarios if provided
     scenarios = [c for c in df.columns if 'scenario' in c]
-    colors = ['orange', 'gold', 'brown', 'crimson']
+    colors = ['#E95420', 'gold', '#ff7f0e', 'crimson']
     dash = ['dash', 'dot', 'dashdot', 'longdash']
     if len(scenarios) >= 1:
         for i, scen in enumerate(scenarios):
-            tmp = str(df[scen].max())
             fig.add_trace(
                 go.Scatter(
-                    name=scen+tmp,
+                    name=scen,
                     x=df.date,
                     y=df[scen],
                     line=dict(color=colors[i], dash=dash[i], width=3)
@@ -459,7 +460,7 @@ def plot_rent_vs_own(df):
             name='Equity-Rent',
             x=df.date,
             y=df.invest_end,
-            line=dict(color='orange', width=3)
+            line=dict(color='#E95420', width=3)
         )
     )
 
@@ -473,8 +474,8 @@ def plot_rent_vs_own(df):
             bordercolor="#536872",
             borderwidth=2,
             borderpad=4,
-            bgcolor="#ff7f0e",
-            font=dict(size=16)
+            bgcolor="#E95420",
+            font=dict(size=16, color='#ffffff')
         )
 
     fig.update_layout(
@@ -513,23 +514,23 @@ def save_scenario(df, scenario_name, scenarios=None):
     None.
 
     """
-    
+
     # save the current scenario
     scen_name = 'scenario-' + scenario_name
     df_new = df[['date', 'end']]
     df_new.columns = ['date', scen_name]
-    
+
     # combine with exisitng scenarios
     if scenarios is not None:
+        # get stored scenarios as a dataframe
         df_old = pd.DataFrame(scenarios)
-        df_new = df_old.set_index('date').join(df_new.set_index('date'),rsuffix='_new', lsuffix='_old', how='left')
-        df_new.reset_index(inplace=True)
-        df_new.rename(columns={"index": "date"},inplace=True)
+
+        # join with the new scenario (on index, should change to date)
+        df_new = df_old.join(df_new, how='left', lsuffix='_old', rsuffix='_new')
+        df_new.rename(columns={'date_new': 'date'}, inplace=True)
+        df_new.drop(columns=('date_old'), inplace=True)
 
     return df_new.to_dict('records')
-    
-    
-    
 
 
 # # get init schedule

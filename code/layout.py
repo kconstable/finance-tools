@@ -148,6 +148,7 @@ card_scenario = dbc.Card(
      dbc.CardHeader("Scenarios"),
      dbc.CardBody(
          [
+             html.P("Add up to four scenarios to compare", className='card-text'),
              html.P("Name", className='card-subtitle'),
              dcc.Input(id='scenario-name', type='text', placeholder='Scenario Name'),
              html.Button("Add Scenario", id='add-scenario', n_clicks=0,
@@ -266,26 +267,17 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
     df, end_date = loan_calc.get_amortization(start_date, price, deposit,
                                               payment, 25, ir, apr, freq,
                                               fee, prepay_store, scenario_store)
-    tmp=''
-    tmp2=''
+
     # get/add scenarios
     if 'add-scenario' in changed_id:
         if scenario_store is None:
             # create the first scenario_store
             scenario_store = loan_calc.save_scenario(df, scenario_name, None)
-            
-            df_tmp = pd.DataFrame(scenario_store)
-            tmp =  ' '.join(df_tmp.columns)
-            tmp2 = str(df_tmp.date.min())+" " + str(df_tmp['scenario-'+scenario_name].max())
+
         else:
             # get new scenario, add to the scenario_store
             scenario_store = loan_calc.save_scenario(df, scenario_name, scenario_store)
-                    
-            df_tmp = pd.DataFrame(scenario_store)
-            tmp =  ' '.join(df_tmp.columns)
-            tmp2 = str(df_tmp.date.min())+" " + str(df_tmp['scenario-'+scenario_name].max())
-            
-            
+
     # update the markdown summary
     total_int = df.interest.sum()
     end_equity = df.equity.max()
@@ -295,7 +287,8 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
     # get prepayment summary for markdown summary
     prepay_str_title = ""
     prepay_str = ""
-    if prepay_store is not None:
+    if prepay_store is not None and ('add-prepay' in changed_id):
+    # if 'add-prepay' in changed_id:
         prepay_str_title = """**Prepayments** """
         for prepayment in prepay_store:
             prepay_str += "${:,.0f} on {} | ".format(prepayment['value'],prepayment['date'])
@@ -310,8 +303,6 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
     
     {prepay_str_title}  
     {prepay_str}  
-    {tmp}
-    {tmp2}
     """
     # create the plot
     fig = loan_calc.plot_amortization(df, end_date, yrs=[5, 10, 15])
