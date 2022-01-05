@@ -127,6 +127,10 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
         frequency of payment: m-monthly, b=bi-weekly
     re_fees: float (percent *100)
         real estate fees - used to calculate mortgage equity on sale
+    prepayments : List of dicts
+        A list of dicts containing prepayments {date, amount}
+    scenarios : List of dicts
+        A list of dicts containing saved scearios (date,end)
     Returns
     -------
     A dataframe with the amortization schedule
@@ -213,12 +217,12 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
         # add the scenarios
         # scenario_store will be a list of dicts, convert to df
         scenarios_df = pd.DataFrame(scenarios)
+        scenarios_df['date'] = pd.to_datetime(scenarios_df['date']).dt.date
 
-        # join scenarios with current df (based on index=> this should
-        # be switched to date to account for bi-weekly/monthly scenarios
-        df = df.join(scenarios_df, how='left', lsuffix='_main', rsuffix='_scenarios')
-        df.rename(columns={'date_main': 'date'}, inplace=True)
-        df.drop(columns=('date_scenarios'), inplace=True)
+        # join scenarios with current df based on date
+        df = df.set_index('date').join(scenarios_df.set_index('date'), how='inner')
+        df.reset_index(inplace=True)
+        df.rename(columns={'index': 'date'}, inplace=True)
 
     # return the dataframe, exclcude nan rows (happens
     # when the mortgage isn't paid after 25 years)
@@ -348,8 +352,6 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     fig.update_layout(
         title='Mortgage Amortization',
         template='plotly_white',
-        width=800,
-        height=500,
         hovermode="x unified",
         font=dict(size=20),
         legend=dict(
@@ -420,16 +422,17 @@ def get_rent_vs_own(start_date, price, deposit, payment, yrs, int_rate, app_rate
 
 def plot_rent_vs_own(df):
     """
-
+    Plots rent vs own simulation
 
     Parameters
     ----------
-    df : TYPE
-        DESCRIPTION.
+    df : Dataframe
+        A dataframe containing mortgage amortization and investment comparision
+        Output from get_rent_vs_own
 
     Returns
     -------
-    None.
+    Plotly figure
 
     """
     # get cross-over date (if it exists)
@@ -481,8 +484,6 @@ def plot_rent_vs_own(df):
     fig.update_layout(
         title='Rent Vs Buy: Equity Projection',
         template='plotly_white',
-        width=800,
-        height=450,
         hovermode="x unified",
         font=dict(size=20),
         yaxis_title='Equity',
@@ -500,35 +501,46 @@ def plot_rent_vs_own(df):
 
 def save_scenario(df, scenario_name, scenarios=None):
     """
-    
+    Save an amortization schedule as a scenario. Used in a store variable
 
     Parameters
     ----------
-    df : TYPE
-        DESCRIPTION.
-    scenario_name : TYPE
-        DESCRIPTION.
+    df : dataframe
+        dataframe that contains the amortization schedule.Output of
+        get_amortization
+    scenario_name : string
+        Scenario name. Used in plot_amortization
+    scenarios : list of dicts, optional
+        Saved scenarios.  New scenarios are appended. From the scenario-store
+        variable in the dash-app
 
     Returns
     -------
-    None.
+    TYPE
+        DESCRIPTION.
 
     """
 
     # save the current scenario
     scen_name = 'scenario-' + scenario_name
-    df_new = df[['date', 'end']]
+    df_new = df[['date', 'end']].copy()
     df_new.columns = ['date', scen_name]
+    df_new['date'] = pd.to_datetime(df_new['date']).dt.date
+    df_new['date'] = df_new['date'].astype('datetime64')
 
     # combine with exisitng scenarios
     if scenarios is not None:
         # get stored scenarios as a dataframe
         df_old = pd.DataFrame(scenarios)
+        df_old['date'] = pd.to_datetime(df_old['date']).dt.date
+        df_old['date'] = df_old['date'].astype('datetime64')
 
-        # join with the new scenario (on index, should change to date)
-        df_new = df_old.join(df_new, how='left', lsuffix='_old', rsuffix='_new')
-        df_new.rename(columns={'date_new': 'date'}, inplace=True)
-        df_new.drop(columns=('date_old'), inplace=True)
+        # join with the new scenario by date
+        df_new = df_old.set_index('date').join(df_new.set_index('date'), how='inner')
+        df_new.reset_index(inplace=True)
+        df_new.rename(columns={'index': 'date'}, inplace=True)
+        df_new['date'] = pd.to_datetime(df_new['date']).dt.date
+        df_new['date'] = df_new['date'].astype('datetime64')
 
     return df_new.to_dict('records')
 

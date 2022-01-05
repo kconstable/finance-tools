@@ -57,13 +57,13 @@ card_mtg_purchase = dbc.Card(
         dbc.CardBody([
             html.P("Purchase Price", className="card-subtitle pt-2"),
             dcc.Input(id='price', type='number', value=900000, min=100000,
-                      max=1000000, step=50000, style={'format': '$0.00'}),
+                      max=1000000, step=50000, style={'format': '$0.00'},size='10'),
             html.P("Deposit", className='card-subtitle pt-2'),
             dcc.Input(id='deposit', type='number', value=140000, min=0,
-                      max=250000, step=10000),
-            html.P("Interest (annual %)", className='card-subtitle pt-2'),
+                      max=250000, step=10000, size='10'),
+            html.P("Interest Rate (annual %)", className='card-subtitle pt-2'),
             dcc.Input(id='ir_annual', type='number', min=0,
-                      max=10, step=0.05, value=1.45),
+                      max=10, step=0.05, value=1.45, size='10'),
         ], style={'font-size': 14}),
     ], color="secondary", outline=True, className="mb-1"
 )
@@ -94,12 +94,12 @@ card_mtg_equity = dbc.Card(
          dbc.CardHeader("Mortgage Equity"),
          dbc.CardBody(
             [
-             html.P("Appreciation (annual %)", className='card-subtitle'),
+             html.P("Appreciation Rate (annual %)", className='card-subtitle'),
              dcc.Input(id='apr_annual', type='number', min=-10,
-                       max=10, step=0.05, value=5.0),
+                       max=10, step=0.05, value=5.0, size='10'),
              html.P("Real Estate Fee (%)", className='card-subtitle pt-2'),
              dcc.Input(id='re_fee', type='number', min=0,
-                       max=10, step=0.05, value=5.0),
+                       max=10, step=0.05, value=5.0, size='10'),
             ], style={'font-size': 14})
     ], color='secondary', outline=True, className="mb-1"
 )
@@ -110,13 +110,13 @@ card_rent = dbc.Card(
      dbc.CardBody(
          [
              html.P("Rent (monthly)", className='card-subtitle'),
-             dcc.Input(id='rent', type='number', min=0, max=10000, step=100, value=2500),
+             dcc.Input(id='rent', type='number', min=0, max=10000, step=100, value=2500, size='10'),
              html.P("Maintainence Fees (monthly)", className='card-subtitle pt-2'),
-             dcc.Input(id='main-fees', type='number', min=0, max=1500, step=50, value=650),
+             dcc.Input(id='main-fees', type='number', min=0, max=1500, step=50, value=650, size='10'),
              html.P("Taxes (annual)", className='card-subtitle pt-2'),
-             dcc.Input(id='tax', type='number', min=0, max=10000, step=50, value=5500),
+             dcc.Input(id='tax', type='number', min=0, max=10000, step=50, value=5500, size='10'),
              html.P("Investment Rate (Annual)", className='card-subtitle pt-2'),
-             dcc.Input(id="inv-rate", type="number", min=-8, max=15, step=0.5, value=8.0)
+             dcc.Input(id="inv-rate", type="number", min=-8, max=15, step=0.5, value=8.0, size='10')
          ], style={'font-size': 14}
      )
     ], color='secondary', outline=True, className="mb-1"
@@ -129,9 +129,9 @@ card_prepayments = dbc.Card(
          [
              html.P("Amount", className='card-subtitle'),
              dcc.Input(id='prepay', type='number', min=0, max=100000,
-                       step=1000, placeholder=10000),
+                       step=1000, placeholder=10000, size='10'),
              html.P("Date of Payment", className='card-subtitle pt-2'),
-             dcc.Input(id='prepay-date', type='text', placeholder='yyyy-mm-dd'),
+             dcc.Input(id='prepay-date', type='text', placeholder='yyyy-mm-dd', size='10'),
              html.Br(),
              html.Button("Add Payment", id='add-prepay', n_clicks=0,
                          className='btn btn-primary mt-2'),
@@ -150,7 +150,7 @@ card_scenario = dbc.Card(
          [
              html.P("Add up to four scenarios to compare", className='card-text'),
              html.P("Name", className='card-subtitle'),
-             dcc.Input(id='scenario-name', type='text', placeholder='Scenario Name'),
+             dcc.Input(id='scenario-name', type='text', placeholder='Scenario Name', size='10'),
              html.Button("Add Scenario", id='add-scenario', n_clicks=0,
                          className='btn btn-primary mt-2'),
              html.Button("Reset", id='reset-scenario', n_clicks=0,
@@ -181,8 +181,10 @@ def render_tab_content(active_tab):
             html.Br(),
             dbc.Row(
                 [
-                    dbc.Col(dcc.Graph(id='plot-amort', className='shadow-lg'), width=8),
-                    dbc.Col(dcc.Markdown(id='md-amort'), width=4, align='center')
+                    dbc.Col(dcc.Graph(id='plot-amort', className='shadow-lg'),
+                            xs=10, sm=10, md=10, lg=8, xl=8),
+                    dbc.Col(dcc.Markdown(id='md-amort'), 
+                            xs=10, sm=10, md=10, lg=4, xl=4, align='center')
                 ]
             )
         ])
@@ -192,8 +194,10 @@ def render_tab_content(active_tab):
             html.Br(),
             dbc.Row(
                     [
-                        dbc.Col(dcc.Graph(id='plot-rent-vs-buy', className="shadow-lg"), width=8),
-                        dbc.Col(dcc.Markdown(id='md-rent-vs-buy'), width=4)
+                        dbc.Col(dcc.Graph(id='plot-rent-vs-buy', className="shadow-lg"), 
+                                xs=10, sm=10, md=10, lg=8, xl=8),
+                        dbc.Col(dcc.Markdown(id='md-rent-vs-buy'), 
+                                xs=10, sm=10, md=10, lg=4, xl=4)
                     ]
                 )
             ]),
@@ -293,16 +297,22 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
         for prepayment in prepay_store:
             prepay_str += "${:,.0f} on {} | ".format(prepayment['value'],prepayment['date'])
 
+
     # summary text for markdown
     md = f"""
     
-    #### Summary
+    #### Mortgage Amortization  
+    This calculator simulates mortgage amortization schedules based on the input parameters. 
+    Modify the parameters to meet your situation.  Provide a scenario name and add the scenario, 
+    then change parameters and compare the results.  You can save up to four different scenarios.   
+    
+    Prepayments can be added to view the impact of adding additional payments at specific dates.  
+    Add as many as you like, but keep in mind most mortgage lenders have a limit on the amount 
+    you can prepay per year without penalty.
+    
     **Total Interest:**${total_int:,.0f}  
     **Ending Equity:** ${end_equity:,.0f}  
     **Payback Period:** {payback}
-    
-    {prepay_str_title}  
-    {prepay_str}  
     """
     # create the plot
     fig = loan_calc.plot_amortization(df, end_date, yrs=[5, 10, 15])
@@ -367,7 +377,6 @@ def plot_rent_vs_buy(rent, fee, tax, inv_rate, price, deposit, payment,
     """
     
     return fig, md
-
 
 
 
