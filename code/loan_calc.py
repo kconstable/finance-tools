@@ -146,6 +146,7 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
     df['end'] = 0.0
     df['value'] = 0.0
     df['equity'] = 0.0
+    df['elapsed_years'] = 0
 
     # add prepayments
     if prepayments is not None:
@@ -191,6 +192,12 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
             df.at[idx, 'equity'] = (value - end) - (value * fees)
             df.at[idx + 1, 'start'] = end
             end_date = df.at[idx, 'date']
+
+            # get elapsed time
+            diff = relativedelta(end_date, start_date)
+            diff_yrs = diff.years + diff.months/12
+            df.at[idx, 'elapsed_yrs'] = diff_yrs
+
         else:
             # mortgage paid off
             df.at[idx, 'payment'] = df.at[idx, 'start']
@@ -199,6 +206,11 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
             df.at[idx, 'value'] = value
             df.at[idx, 'equity'] = (value - end) - (value * fees)
             end_date = df.at[idx, 'date']
+
+            # get elapsed time
+            diff = relativedelta(end_date, start_date)
+            diff_yrs = diff.years + diff.months/12
+            df.at[idx, 'elapsed_yrs'] = diff_yrs
             break
 
     # add scenarios if provided
@@ -282,6 +294,9 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     # create plots
     fig = go.Figure()
 
+    # get extra data for hovertext
+    customdata = list(zip(df['elapsed_yrs'], df.equity, df.cum_interest))
+
     # outstanding mortgage
     fig.add_trace(
         go.Scattergl(
@@ -290,7 +305,12 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
             y=df.end,
             line=dict(color='#536872'),
             fill='tozeroy',
-            hovertemplate=None
+            customdata=customdata,
+            hovertemplate="""<b>Mortgage:</b> $%{y:,.0f}
+                               <br><b>Cumulative Interest:</b> $%{customdata[2]:,.0f}
+                               <br><b>Equity:</b> $%{customdata[1]:,.0f}
+                               <br><b>Elapsed Years:</b> %{customdata[0]:.2f}
+                               <extra></extra>""",
         )
     )
 
@@ -302,7 +322,7 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
             y=df.cum_interest,
             line=dict(color='#E95420'),
             fill='tozeroy',
-            hovertemplate=None
+            hoverinfo='skip'
         )
     )
     # add sub-title
@@ -333,14 +353,18 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     fig.update_layout(
         title='Mortgage Amortization',
         template='plotly_white',
-        hovermode="x unified",
+        hovermode="x",
         font=dict(size=20),
         legend=dict(
             yanchor='top',
             y=1.0,
             xanchor='right',
-            x=0.98,
-        )
+            x=0.98),
+        hoverlabel=dict(
+                bgcolor="#E95420",
+                font_size=16,
+                )
+        
     )
 
     return fig
@@ -448,24 +472,33 @@ def plot_rent_vs_own(df):
 
     # create the plot
     fig = go.Figure()
+    
+    # get custom data for hover text
+    customdata = list(zip(df.invest_end,df.elapsed_yrs))
 
     # mortgage equity
     fig.add_trace(
         go.Scattergl(
-            name='Equity-Own',
+            name='Mortgage Equity',
             x=df.date,
             y=df.equity,
-            line=dict(color='#536872', width=3)
+            customdata=customdata,
+            line=dict(color='#536872', width=3),
+            hovertemplate = """<b>Mortgage Equity:</b> $%{y:,.0f} 
+                               <br><b>Investment Equity:</b> $%{customdata[0]:,.0f} 
+                               <br><b>Elapsed Years:</b> %{customdata[1]:.2f}
+                               <extra></extra>""",
         )
     )
 
     # rental/investment equity
     fig.add_trace(
         go.Scattergl(
-            name='Equity-Rent',
+            name='Rent/Investment Equity',
             x=df.date,
             y=df.invest_end,
-            line=dict(color='#E95420', width=3)
+            line=dict(color='#E95420', width=3),
+            hoverinfo='skip',
         )
     )
 
@@ -487,7 +520,7 @@ def plot_rent_vs_own(df):
                 text=diff_str,
                 showarrow=True,
                 arrowhead=1,
-                bordercolor="#536872",
+                bordercolor="white",
                 borderwidth=2,
                 borderpad=4,
                 bgcolor="#E95420",
@@ -497,7 +530,7 @@ def plot_rent_vs_own(df):
     fig.update_layout(
         title='Rent Vs Buy: Equity Projection',
         template='plotly_white',
-        hovermode="x unified",
+        hovermode='x',
         font=dict(size=20),
         yaxis_title='Equity',
         legend=dict(
@@ -505,6 +538,10 @@ def plot_rent_vs_own(df):
             y=0.10,
             xanchor='right',
             x=0.98,
+            ),
+        hoverlabel=dict(
+            bgcolor="#E95420",
+            font_size=16,
             )
     )
 
@@ -557,62 +594,5 @@ def save_scenario(df, scenario_name, scenarios=None):
     return df_new.to_dict('records')
 
 
-# get init schedule
-# df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
-# 'a',RE_FEES,PRE_PAYMENTS, None)
 
-# df.set_index('date',inplace=True,drop=False)
-# aggs = {'date': 'last',
-#         'payment':'sum',
-#         'prepayment': 'sum',
-#         'interest': 'sum',
-#         'start': 'first',
-#         'end': 'last',
-#         'value': 'last',
-#         'equity': 'last'
-#         }
-# df_agg = df.groupby([df.index.year,df.index.month]).agg(aggs)
-
-
-
-
-# df_agg['group'] = df_agg.apply(lambda x:x['date'].year + '-' + x['date'].month)
-
-
-
-# # first save - create the scenario_store with active params
-# s = save_scenario(df, '1', None)  #dict
-
-
-# # next scenario- change params
-# PAY = 4000
-# IR = 1.8
-# df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
-# 'm',RE_FEES,PRE_PAYMENTS, s)
-
-# # save + combine scenarios
-# s = save_scenario(df, '2', s)
-
-
-
-# PAY = 3800
-# IR = 1.5
-# df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
-# 'm',RE_FEES,PRE_PAYMENTS, s)
-
-# s = save_scenario(df, '3', s)
-
-
-# # creats the plot
-# fig = plot_amortization(df,end_date, [5,10,20])
-# fig.show()
-
-
-
-# rent vs own
-# df = get_rent_vs_own(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE, 'm',
-#                       RE_FEES, MONTHLY_RENT, ANNUAL_INVEST_RATE,
-#                       MONTHLY_FEES, ANNUAL_TAX)
-# fig = plot_rent_vs_own(df)
-# fig.show()
 

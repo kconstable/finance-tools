@@ -3,7 +3,7 @@
 """
 Created on Thu Dec 30 11:36:06 2021
 
-@author: ken
+@author: Ken Constable
 """
 # import plotly.graph_objects as go
 import plotly.io as pio
@@ -56,14 +56,14 @@ card_mtg_purchase = dbc.Card(
         dbc.CardHeader("Mortgage Purchase"),
         dbc.CardBody([
             html.P("Purchase Price", className="card-subtitle pt-2"),
-            dcc.Input(id='price', type='number', value=900000, min=100000,
-                      max=1000000, size='10', debounce=True),
+            dcc.Input(id='price', type='number', value=900000, min=1000,
+                      max=5000000, size='10', step=1000, debounce=True),
             html.P("Deposit", className='card-subtitle pt-2'),
             dcc.Input(id='deposit', type='number', value=140000, min=0,
-                      max=250000, step=10000, size='10', debounce=True),
+                      max=5000000, step=1000, size='10', debounce=True),
             html.P("Interest Rate (annual %)", className='card-subtitle pt-2'),
             dcc.Input(id='ir_annual', type='number', min=0,
-                      max=10, step=0.05, value=1.45, size='10', debounce=True),
+                      max=10, step=0.05, value=1.55, size='10', debounce=True),
         ], style={'font-size': 14}),
     ], color="secondary", outline=True, className="mb-1"
 )
@@ -83,8 +83,8 @@ card_mtg_payments = dbc.Card(
                           value='m'
                           ),
              html.P("Payment", className='card-subtitle pt-2'),
-             dcc.Input(id='payment', type='number', value=3500, min=500,
-                       max=6000, step=100, debounce=True),
+             dcc.Input(id='payment', type='number', value=3000, min=500,
+                       max=10000, step=100, debounce=True),
              ], style={'font-size': 14}
          )
     ], color='secondary', outline=True, className="mb-1"
@@ -96,11 +96,11 @@ card_mtg_equity = dbc.Card(
          dbc.CardBody(
             [
              html.P("Appreciation Rate (annual %)", className='card-subtitle'),
-             dcc.Input(id='apr_annual', type='number', min=-10,
-                       max=10, step=0.05, value=5.0, size='10', debounce=True),
+             dcc.Input(id='apr_annual', type='number', min=-20,
+                       max=20, step=0.5, value=5.0, size='10', debounce=True),
              html.P("Real Estate Fee (%)", className='card-subtitle pt-2'),
              dcc.Input(id='re_fee', type='number', min=0,
-                       max=10, step=0.05, value=5.0, size='10', debounce=True),
+                       max=10, step=0.5, value=5.0, size='10', debounce=True),
             ], style={'font-size': 14})
     ], color='secondary', outline=True, className="mb-1"
 )
@@ -114,13 +114,13 @@ card_rent = dbc.Card(
              dcc.Input(id='rent', type='number', min=0, max=10000, step=100, 
                        value=2500, size='10', debounce=True),
              html.P("Maintainence Fees (monthly)", className='card-subtitle pt-2'),
-             dcc.Input(id='main-fees', type='number', min=0, max=1500, step=50, 
+             dcc.Input(id='main-fees', type='number', min=0, max=2000, step=50, 
                        value=650, size='10', debounce=True),
              html.P("Taxes (annual)", className='card-subtitle pt-2'),
              dcc.Input(id='tax', type='number', min=0, max=10000, step=50, 
                        value=5500, size='10', debounce=True),
              html.P("Investment Rate (annual)", className='card-subtitle pt-2'),
-             dcc.Input(id="inv-rate", type="number", min=-8, max=15, step=0.5, 
+             dcc.Input(id="inv-rate", type="number", min=-10.0, max=25.0, step=0.5, 
                        value=8.0, size='10', debounce=True)
          ], style={'font-size': 14}
      )
