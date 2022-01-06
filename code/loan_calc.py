@@ -29,70 +29,60 @@ PRE_PAYMENTS = [{'date': '2024-06-01', 'value': 10000},
 
 
 # Rent Constants
-ANNUAL_INVEST_RATE = 6.0
-MONTHLY_FEES = 800
+ANNUAL_INVEST_RATE = 10.0
+MONTHLY_FEES = 650
 ANNUAL_TAX = 5500
 MONTHLY_RENT = 2500
 
 
-def get_periods(start_date, yrs=25, frequency='m'):
+def get_periods(start_date, yrs=25, frequency='b'):
     """
-    Returns a list of dates from start-date to the number of years(yrs) by
-    the frequency of payment (frequency, monthly or bi-monthly)
+    Determine a range of dates from start_date to the number of years based
+    on the frequency. Used to determine when mortgage payments will occur
 
     Parameters
     ----------
-    start_date : date (yyyy-mm-dd)
-        Start date for amortization schedule
-    yrs : Int
-        Number of years in the amortization schedule
-    frequency : string
-        frequency of payments. m=monthly, b=bi-monthly
+    start_date : date
+        Start date of the projection
+    yrs : int, optional
+        Number of years to project. The default is 25.
+    frequency : string, optional
+        The freqency of dates: m=monthly, b=bi-monthly, a=every two weeks
 
     Returns
     -------
-    List of dates
+    A list of payment dates
 
     """
 
     # get end date
     end_date = start_date + timedelta(days=yrs*365)
 
-    # create the list of date ranges
-    if frequency == 'm':
+    # get payment dates
+    if frequency == 'd':
+        # daily (calendar days)
+        rng = pd.date_range(start_date, end=end_date, freq='D')
+    elif frequency == 'm':
         # monthly
         rng = pd.date_range(start_date, end=end_date, freq='M')
     elif frequency == 'b':
-        # biweekly
-        rng = pd.date_range(start=start_date, end=end_date, freq='SM')
+        # bi-weekly: 15th, Last-day-of-month (24 pay-periods)
+        rng = pd.date_range(start_date, end=end_date, freq='SM')
+    elif frequency == 'a':
+        # accelerated bi-weekly, every-14-days (26 pay-periods)
+        rng = []
+        dt = start_date
+        while dt + timedelta(days=14) <= end_date:
+            dt = dt + timedelta(days=14)
+            rng.append(pd.Timestamp(dt))
+    else:
+        # undefined
+        print('unknown frequency')
+        rng = []
 
     return rng
 
 
-def get_georeturn(rate, frequency):
-    """
-    Converts annual rate of return to monthly or bi-weekly
-
-    Parameters
-    ----------
-    rate : float
-        Annual rate of return (5.0)==5.0%
-    frequency : string
-        Frequency to convert to: m=montthly, b=bi-weekly
-
-    Returns
-    -------
-    float
-
-    """
-    r = rate / 100
-
-    if frequency == 'm':
-        return (1 + r) ** (1 / 12) - 1
-    elif frequency == 'b':
-        return (1 + r) ** (1 / 24) - 1
-    else:
-        print('frequency not recongized')
 
 
 def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rate,
@@ -138,15 +128,17 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
     """
 
     # convert rates, calc mortgage, get date range
-    ir = get_georeturn(int_rate, frequency)
-    app = get_georeturn(app_rate, frequency)
+    ir = get_georeturn(int_rate, 'd')
+    app = get_georeturn(app_rate, 'd')
     fees = re_fees / 100
     mortgage = price - deposit
-    date_rng = get_periods(start_date, yrs, frequency)
+    date_rng = get_periods(start_date, yrs, 'd')  # daily range
+    pay_rng = get_periods(start_date, yrs, frequency)  # pay-periods
 
     # init the dataframe
     df = pd.DataFrame(date_rng, columns=['date'])
     df['frequency'] = frequency
+    df['pay_period'] = False
     df['start'] = 0.0
     df['payment'] = 0.0
     df['prepayment'] = 0.0
@@ -158,36 +150,33 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
     # add prepayments
     if prepayments is not None:
         for prepayment in prepayments:
-            # get the date as string
-            str_date = prepayment['date']
 
-            # parse the month/year
-            pay_date = datetime.strptime(str_date, '%Y-%m-%d').date()
-            pay_mth = pay_date.month
-            pay_yr = pay_date.year
-            pay_day = calendar.monthrange(pay_yr, pay_mth)[1]
-            dt = str(date(pay_yr, pay_mth, pay_day))
+            # get the index for the prepayment date
+            idx = df[df.date == prepayment['date']].index.values.astype(int)[0]
 
-            # get the index value for that date
-            idx = df[df.date == dt].index.values.astype(int)[0]
-
-            # add the pre-payment at the month-end date
+            # add the prepayment
             df.at[idx, 'prepayment'] = prepayment['value']
 
     # create the amortization schedule
     for idx, row in df.iterrows():
 
-        # first payment
+        # first period
         if idx == 0:
             df.at[0, 'start'] = mortgage
             end_date = start_date
             value = price
 
+        # add payment if it's a pay period according to the frequency selected
+        if row.date in pay_rng:
+            pay = payment
+        else:
+            pay = 0
+
         # calc interest
-        int_pay = (df.at[idx, 'start'] - payment - df.at[idx, 'prepayment']) * ir
+        int_pay = (df.at[idx, 'start'] - pay - df.at[idx, 'prepayment']) * ir
 
         # calc end balance
-        end = df.at[idx, 'start'] + int_pay - payment - df.at[idx, 'prepayment']
+        end = df.at[idx, 'start'] + int_pay - pay - df.at[idx, 'prepayment']
 
         # calc appreciation
         value = value * (1 + app)
@@ -195,7 +184,7 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
         # update amortization schedule
         if end > 0:
             # update schedule
-            df.at[idx, 'payment'] = payment
+            df.at[idx, 'payment'] = pay
             df.at[idx, 'interest'] = int_pay
             df.at[idx, 'end'] = end
             df.at[idx, 'value'] = value
@@ -230,6 +219,32 @@ def get_amortization(start_date, price, deposit, payment, yrs, int_rate, app_rat
     return df, end_date
 
 
+def get_georeturn(rate, frequency='d'):
+    """
+    Converts annual rate of return to monthly, bi-weekly or daily
+
+    Parameters
+    ----------
+    rate : float
+        Annual rate of return (5.0)==5.0%
+    frequency : string
+        Frequency to convert to: m=monthly, d=daily
+
+    Returns
+    -------
+    float
+
+    """
+    r = rate / 100
+
+    if frequency == 'm':
+        return (1 + r) ** (1 / 12) - 1
+    elif frequency == 'd':
+        return (1 + r) ** (1 / 365) - 1
+    else:
+        print('frequency not recongized')
+
+
 def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     """
     Plot the amortization schedule (ending balance + cumulative interest)
@@ -250,9 +265,6 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     # copy df
     df = df_amort.copy()
 
-    # get the frequency of payments
-    freq = df.frequency.unique()
-
     # get the number of years to pay-off
     if df.end.min() > 0:
         diff_yrs = "> 25 "
@@ -267,30 +279,12 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     # sub-title text
     subtitle = f'Amortization:{diff_yrs} Years | Total Interest:${total_interest:,.0f}'
 
-    # get the annotation data based on yrs
-    d = {}
-    for y in yrs:
-        if freq == 'm':
-            p = y * 12
-            try:
-                d[y] = {'date': df.at[p, 'date'], 'mtg': df.at[p, 'end'],
-                        'name': f'{y} Years'}
-            except:
-                continue
-        else:
-            p = y * 24
-            try:
-                d[y] = {'date': df.at[p, 'date'], 'mtg': df.at[p, 'end'],
-                        'name': f'{y} Years'}
-            except:
-                continue
-
     # create plots
     fig = go.Figure()
 
     # outstanding mortgage
     fig.add_trace(
-        go.Scatter(
+        go.Scattergl(
             name='Mortgage',
             x=df.date,
             y=df.end,
@@ -302,7 +296,7 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
 
     # cumulative interest
     fig.add_trace(
-        go.Scatter(
+        go.Scattergl(
             name='Interest',
             x=df.date,
             y=df.cum_interest,
@@ -320,28 +314,15 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
         font=dict(size=18)
 
     )
-    # add yearly annotation
-    for k, v in d.items():
-        fig.add_annotation(
-            x=v['date'],
-            y=v['mtg'],
-            text=v['name'],
-            showarrow=True,
-            arrowhead=1,
-            bordercolor="#536872",
-            borderwidth=2,
-            borderpad=4,
-            bgcolor="#E95420",
-            font=dict(color='#ffffff')
-        )
+
     # add scenarios if provided
     scenarios = [c for c in df.columns if 'scenario' in c]
-    colors = ['#E95420', 'gold', '#ff7f0e', 'crimson']
+    colors = ['#E95420', '#ff7f0e', 'gold', 'crimson']
     dash = ['dash', 'dot', 'dashdot', 'longdash']
     if len(scenarios) >= 1:
         for i, scen in enumerate(scenarios):
             fig.add_trace(
-                go.Scatter(
+                go.Scattergl(
                     name=scen,
                     x=df.date,
                     y=df[scen],
@@ -368,10 +349,10 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
 def get_rent_vs_own(start_date, price, deposit, payment, yrs, int_rate, app_rate,
                     frequency, re_fees, monthly_rent,
                     inv_rate, monthly_main, annual_tax):
-    
+
     # get the mortgage amortization schedule
-    df, end_date = get_amortization(start_date, price, deposit, payment, yrs, int_rate,
-                                    app_rate, frequency, re_fees)
+    df, end_date = get_amortization(start_date, price, deposit, payment, yrs,
+                                    int_rate, app_rate, frequency, re_fees)
 
     # remove rows after the mortgage amortization is complete
     df = df[df.date <= end_date]
@@ -379,41 +360,68 @@ def get_rent_vs_own(start_date, price, deposit, payment, yrs, int_rate, app_rate
     # add investment columns
     df['invest_start'] = 0
     df['invest_end'] = 0
+    df['cross_over_tmp'] = 'r'
     df['cross_over'] = 0
 
     # convert invest rates and fees to match frequency
-    inv = get_georeturn(inv_rate, frequency)
+    inv = get_georeturn(inv_rate, 'd')
+
     if frequency == 'm':
         # monthly
         tax = annual_tax / 12
         main = monthly_main
         rent = monthly_rent
-    else:
-        # bi-weekly
+    elif frequency == 'b':
+        # bi-weekly (24 payments)
         tax = annual_tax / 24
         main = monthly_main / 2
         rent = monthly_rent / 2
+    else:
+        # accelerated bi-weekly (26 payments)
+        tax = annual_tax / 26
+        main = monthly_main * 12 / 26
+        rent = monthly_rent * 12 / 26
 
     # calculate the investment returns
-    cross_over = True
     for idx, row in df.iterrows():
         # first period. invest the downpayment + tax + main +
         # mortgage/rent difference
+
         if idx == 0:
-            invest = deposit + tax + main + (payment - rent)
-            df.at[idx, 'invest_start'] = invest
-            df.at[idx, 'invest_end'] = invest * (1 + inv)
-            df.at[idx + 1, 'invest_start'] = invest * (1 + inv)
-        else:
-            # subsequent periods
+            # first period, invest the downpayment at the daily invest rate
+            invest = deposit
+            df.at[idx, 'invest_start'] = deposit
+
+            # calc the daily capital gains, roll the balance forward
+            cap_gains = invest * (1 + inv)
+            df.at[idx, 'invest_end'] = cap_gains
+            df.at[idx + 1, 'invest_start'] = cap_gains
+        elif df.at[idx, 'payment'] > 0:
+            # payment period.  Invest the taxes, maintenence fees, mortgage
+            # payment savings
             invest = df.at[idx, 'invest_start'] + tax + main + (payment - rent)
-            df.at[idx, 'invest_end'] = invest * (1 + inv)
-            df.at[idx + 1, 'invest_start'] = invest * (1 + inv)
-        # if df.at[idx, 'equity'] > df.at[idx, 'invest_end']:
-        if cross_over is True and df.at[idx, 'equity'] > df.at[idx, 'invest_end']:
-            cross_over = False
-            df.at[idx, 'cross_over'] = 1
-            
+            cap_gains = invest * (1 + inv)
+            df.at[idx, 'invest_end'] = cap_gains
+            df.at[idx + 1, 'invest_start'] = cap_gains
+        elif df.at[idx, 'payment'] == 0:
+            # non-payment period, compound investment gains
+            cap_gains = df.at[idx, 'invest_start'] * (1 + inv)
+            df.at[idx, 'invest_end'] = cap_gains
+            df.at[idx + 1, 'invest_start'] = cap_gains
+
+        # find cross-over points
+        if df.at[idx, 'invest_end'] > df.at[idx, 'equity']:
+            df.at[idx, 'cross_over_tmp'] = 'r'
+        else:
+            df.at[idx, 'cross_over_tmp'] = 'o'
+        # find dates where the equity/rental plots will cross
+        if idx > 0:
+            if df.at[idx-1, 'cross_over_tmp'] != df.at[idx, 'cross_over_tmp']:
+                df.at[idx, 'cross_over'] = 1
+
+    # remove temp column
+    df.drop(columns=(['cross_over_tmp']), inplace=True)
+
     # when the mortgage isn't paid after 25 years)
     df = df[~df.date.isnull()]
 
@@ -435,22 +443,15 @@ def plot_rent_vs_own(df):
     Plotly figure
 
     """
-    # get cross-over date (if it exists)
-    try:
-        cross_over_idx = df[df.cross_over == 1].index.item()
-        cross_over_date = df.at[cross_over_idx, 'date']
-        cross_over_value = df.at[cross_over_idx, 'equity']
+    # get cross-over date (if they exist)
+    cross_overs = df[df.cross_over == 1]
 
-        # calculate the number of years before cross-over
-        diff = relativedelta(cross_over_date, df.date.min())
-        diff_str = f"{diff.years} Year(s)|{diff.months} Month(s)"
-    except:
-        cross_over_idx = None
-
+    # create the plot
     fig = go.Figure()
 
+    # mortgage equity
     fig.add_trace(
-        go.Scatter(
+        go.Scattergl(
             name='Equity-Own',
             x=df.date,
             y=df.equity,
@@ -458,8 +459,9 @@ def plot_rent_vs_own(df):
         )
     )
 
+    # rental/investment equity
     fig.add_trace(
-        go.Scatter(
+        go.Scattergl(
             name='Equity-Rent',
             x=df.date,
             y=df.invest_end,
@@ -467,19 +469,30 @@ def plot_rent_vs_own(df):
         )
     )
 
-    if cross_over_idx is not None:
-        fig.add_annotation(
-            x=cross_over_date,
-            y=cross_over_value,
-            text=diff_str,
-            showarrow=True,
-            arrowhead=1,
-            bordercolor="#536872",
-            borderwidth=2,
-            borderpad=4,
-            bgcolor="#E95420",
-            font=dict(size=16, color='#ffffff')
-        )
+    # add cross-over annotations if they exist
+    if cross_overs.shape[0] >= 1:
+        for idx, row in cross_overs.iterrows():
+            # get the date/value of cross-over
+            cross_over_date = df.at[idx, 'date']
+            cross_over_value = df.at[idx, 'equity']
+
+            # calculate the number of years before cross-over
+            diff = relativedelta(cross_over_date, df.date.min())
+            diff_str = f"{diff.years + diff.months/12:.2f} Years"
+
+            # add the annotation
+            fig.add_annotation(
+                x=cross_over_date,
+                y=cross_over_value,
+                text=diff_str,
+                showarrow=True,
+                arrowhead=1,
+                bordercolor="#536872",
+                borderwidth=2,
+                borderpad=4,
+                bgcolor="#E95420",
+                font=dict(size=16, color='#ffffff')
+            )
 
     fig.update_layout(
         title='Rent Vs Buy: Equity Projection',
@@ -495,7 +508,6 @@ def plot_rent_vs_own(df):
             )
     )
 
-    # fig.show()
     return fig
 
 
@@ -541,13 +553,32 @@ def save_scenario(df, scenario_name, scenarios=None):
         df_new.rename(columns={'index': 'date'}, inplace=True)
         df_new['date'] = pd.to_datetime(df_new['date']).dt.date
         df_new['date'] = df_new['date'].astype('datetime64')
-
+        
     return df_new.to_dict('records')
 
 
-# # get init schedule
+# get init schedule
 # df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE,
-# 'm',RE_FEES,PRE_PAYMENTS, None)
+# 'a',RE_FEES,PRE_PAYMENTS, None)
+
+# df.set_index('date',inplace=True,drop=False)
+# aggs = {'date': 'last',
+#         'payment':'sum',
+#         'prepayment': 'sum',
+#         'interest': 'sum',
+#         'start': 'first',
+#         'end': 'last',
+#         'value': 'last',
+#         'equity': 'last'
+#         }
+# df_agg = df.groupby([df.index.year,df.index.month]).agg(aggs)
+
+
+
+
+# df_agg['group'] = df_agg.apply(lambda x:x['date'].year + '-' + x['date'].month)
+
+
 
 # # first save - create the scenario_store with active params
 # s = save_scenario(df, '1', None)  #dict
@@ -582,5 +613,6 @@ def save_scenario(df, scenario_name, scenarios=None):
 # df = get_rent_vs_own(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE, 'm',
 #                       RE_FEES, MONTHLY_RENT, ANNUAL_INVEST_RATE,
 #                       MONTHLY_FEES, ANNUAL_TAX)
-# plot_rent_vs_own(df)
+# fig = plot_rent_vs_own(df)
+# fig.show()
 

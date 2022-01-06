@@ -12,9 +12,9 @@ from dash import html
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 from datetime import date
 from dateutil.relativedelta import relativedelta
-import pandas as pd
 import loan_calc
 
 # Render plots in a browswer
@@ -57,13 +57,13 @@ card_mtg_purchase = dbc.Card(
         dbc.CardBody([
             html.P("Purchase Price", className="card-subtitle pt-2"),
             dcc.Input(id='price', type='number', value=900000, min=100000,
-                      max=1000000, step=50000, style={'format': '$0.00'},size='10'),
+                      max=1000000, size='10', debounce=True),
             html.P("Deposit", className='card-subtitle pt-2'),
             dcc.Input(id='deposit', type='number', value=140000, min=0,
-                      max=250000, step=10000, size='10'),
+                      max=250000, step=10000, size='10', debounce=True),
             html.P("Interest Rate (annual %)", className='card-subtitle pt-2'),
             dcc.Input(id='ir_annual', type='number', min=0,
-                      max=10, step=0.05, value=1.45, size='10'),
+                      max=10, step=0.05, value=1.45, size='10', debounce=True),
         ], style={'font-size': 14}),
     ], color="secondary", outline=True, className="mb-1"
 )
@@ -78,12 +78,13 @@ card_mtg_payments = dbc.Card(
                           options=[
                               {'label': 'Monthly', 'value': 'm'},
                               {'label': 'Bi-Weekly', 'value': 'b'},
+                              {'label': 'Accelerated', 'value': 'a'}
                               ],
                           value='m'
                           ),
              html.P("Payment", className='card-subtitle pt-2'),
              dcc.Input(id='payment', type='number', value=3500, min=500,
-                       max=6000, step=100),
+                       max=6000, step=100, debounce=True),
              ], style={'font-size': 14}
          )
     ], color='secondary', outline=True, className="mb-1"
@@ -96,10 +97,10 @@ card_mtg_equity = dbc.Card(
             [
              html.P("Appreciation Rate (annual %)", className='card-subtitle'),
              dcc.Input(id='apr_annual', type='number', min=-10,
-                       max=10, step=0.05, value=5.0, size='10'),
+                       max=10, step=0.05, value=5.0, size='10', debounce=True),
              html.P("Real Estate Fee (%)", className='card-subtitle pt-2'),
              dcc.Input(id='re_fee', type='number', min=0,
-                       max=10, step=0.05, value=5.0, size='10'),
+                       max=10, step=0.05, value=5.0, size='10', debounce=True),
             ], style={'font-size': 14})
     ], color='secondary', outline=True, className="mb-1"
 )
@@ -110,13 +111,17 @@ card_rent = dbc.Card(
      dbc.CardBody(
          [
              html.P("Rent (monthly)", className='card-subtitle'),
-             dcc.Input(id='rent', type='number', min=0, max=10000, step=100, value=2500, size='10'),
+             dcc.Input(id='rent', type='number', min=0, max=10000, step=100, 
+                       value=2500, size='10', debounce=True),
              html.P("Maintainence Fees (monthly)", className='card-subtitle pt-2'),
-             dcc.Input(id='main-fees', type='number', min=0, max=1500, step=50, value=650, size='10'),
+             dcc.Input(id='main-fees', type='number', min=0, max=1500, step=50, 
+                       value=650, size='10', debounce=True),
              html.P("Taxes (annual)", className='card-subtitle pt-2'),
-             dcc.Input(id='tax', type='number', min=0, max=10000, step=50, value=5500, size='10'),
-             html.P("Investment Rate (Annual)", className='card-subtitle pt-2'),
-             dcc.Input(id="inv-rate", type="number", min=-8, max=15, step=0.5, value=8.0, size='10')
+             dcc.Input(id='tax', type='number', min=0, max=10000, step=50, 
+                       value=5500, size='10', debounce=True),
+             html.P("Investment Rate (annual)", className='card-subtitle pt-2'),
+             dcc.Input(id="inv-rate", type="number", min=-8, max=15, step=0.5, 
+                       value=8.0, size='10', debounce=True)
          ], style={'font-size': 14}
      )
     ], color='secondary', outline=True, className="mb-1"
@@ -129,9 +134,10 @@ card_prepayments = dbc.Card(
          [
              html.P("Amount", className='card-subtitle'),
              dcc.Input(id='prepay', type='number', min=0, max=100000,
-                       step=1000, placeholder=10000, size='10'),
+                       step=1000, placeholder=10000, size='10', debounce=True),
              html.P("Date of Payment", className='card-subtitle pt-2'),
-             dcc.Input(id='prepay-date', type='text', placeholder='yyyy-mm-dd', size='10'),
+             dcc.Input(id='prepay-date', type='text', placeholder='yyyy-mm-dd', 
+                       size='10', debounce=True),
              html.Br(),
              html.Button("Add Payment", id='add-prepay', n_clicks=0,
                          className='btn btn-primary mt-2'),
@@ -148,10 +154,11 @@ card_scenario = dbc.Card(
      dbc.CardHeader("Scenarios"),
      dbc.CardBody(
          [
-             html.P("Add up to four scenarios to compare", className='card-text'),
-             html.P("Name", className='card-subtitle'),
-             dcc.Input(id='scenario-name', type='text', placeholder='Scenario Name', size='10'),
-             html.Button("Add Scenario", id='add-scenario', n_clicks=0,
+             html.P("Save scenarios to compare schedules", className='card-text'),
+             html.P("Scenario Name", className='card-subtitle'),
+             dcc.Input(id='scenario-name', type='text', placeholder='Scenario Name', 
+                       size='10', debounce=True),
+             html.Button("Save Scenario", id='add-scenario', n_clicks=0,
                          className='btn btn-primary mt-2'),
              html.Button("Reset", id='reset-scenario', n_clicks=0,
                          className='btn btn-primary mt-2 ms-2'),
@@ -177,24 +184,28 @@ def render_tab_content(active_tab):
 
     if active_tab == "mortgage":
         return html.Div([
-            dbc.CardGroup([card_mtg_purchase, card_mtg_payments, card_mtg_equity, card_prepayments,card_scenario]),
+            dbc.CardGroup([card_mtg_purchase, card_mtg_payments,
+                           card_mtg_equity, card_prepayments, card_scenario]),
             html.Br(),
             dbc.Row(
                 [
-                    dbc.Col(dcc.Graph(id='plot-amort', className='shadow-lg'),
+                    dbc.Col(dcc.Loading(dcc.Graph(id='plot-amort', className='shadow-lg'),
+                                        color='#E95420', type='dot', fullscreen=False),
                             xs=10, sm=10, md=10, lg=8, xl=8),
-                    dbc.Col(dcc.Markdown(id='md-amort'), 
+                    dbc.Col(dcc.Markdown(id='md-amort'),
                             xs=10, sm=10, md=10, lg=4, xl=4, align='center')
                 ]
             )
         ])
     elif active_tab == "rent_vs_buy":
         return html.Div([
-            dbc.CardGroup([card_mtg_purchase, card_mtg_payments, card_mtg_equity, card_rent]),
+            dbc.CardGroup([card_mtg_purchase, card_mtg_payments, 
+                           card_mtg_equity, card_rent]),
             html.Br(),
             dbc.Row(
                     [
-                        dbc.Col(dcc.Graph(id='plot-rent-vs-buy', className="shadow-lg"), 
+                        dbc.Col(dcc.Loading(dcc.Graph(id='plot-rent-vs-buy', className="shadow-lg"),
+                                            color = '#E95420', type='dot', fullscreen=False),
                                 xs=10, sm=10, md=10, lg=8, xl=8),
                         dbc.Col(dcc.Markdown(id='md-rent-vs-buy'), 
                                 xs=10, sm=10, md=10, lg=4, xl=4)
@@ -216,6 +227,10 @@ def render_tab_content(active_tab):
      Output('scenario-store', 'data')
     ],
     [
+     Input('add-prepay', 'n_clicks'),  # add prepay button click
+     Input('reset-prepay', 'n_clicks'),  # reset prepay button click
+     Input('add-scenario', 'n_clicks'),  # add scenario button click
+     Input('reset-scenario', 'n_clicks'),  # reset scenario button click
      Input('price', 'value'),
      Input('deposit', 'value'),
      Input('payment', 'value'),
@@ -223,20 +238,18 @@ def render_tab_content(active_tab):
      Input('apr_annual', 'value'),
      Input('re_fee', 'value'),
      Input('dd_freq', 'value'),
-     Input('add-prepay', 'n_clicks'),  # add prepay button click
-     Input('reset-prepay', 'n_clicks'),  # reset prepay button click
+    ],
+    [
      State('prepay', 'value'),
      State('prepay-date', 'value'),
      State('prepay-store', 'data'),  # prepay-store is also input
-     Input('add-scenario', 'n_clicks'),  # add scenario button click
-     Input('reset-scenario', 'n_clicks'),  # reset scenario button click
      State('scenario-name', 'value'),
      State('scenario-store', 'data')  # scenario-store is also input
     ]
 )
-def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
-                      n_prepay_reset, prepay_value, prepay_date, prepay_store,
-                      n_scenario, n_scenario_reset, scenario_name, scenario_store):
+def plot_amortization(n_prepay, n_prepay_reset, n_scenario, n_scenario_reset,
+                      price, deposit, payment, ir, apr, fee, freq, prepay_value,
+                      prepay_date, prepay_store, scenario_name, scenario_store):
 
     # get a list of id's that changed
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
@@ -258,26 +271,26 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
         # no prepayments
         prepay_store = None
 
-    # if the reset prepayment button was clicked
+    # reset the prepayment store to none when the reset button is pushed
     if 'reset-prepay' in changed_id:
         prepay_store = None
-        
-    # init the scenario_store to None
-    # or when the reset button is pushed    
-    if n_scenario == 0 or ('reset-scenario' in changed_id):
+
+    # clear the scenario_store when first loaded
+    # or when the reset button is pushed
+    if n_scenario == 0 or 'reset-scenario' in changed_id:
         scenario_store = None
-        
-    # get schedule
+
+    # get the schedule
     df, end_date = loan_calc.get_amortization(start_date, price, deposit,
                                               payment, 25, ir, apr, freq,
                                               fee, prepay_store, scenario_store)
 
     # get/add scenarios
+    # if n_scenario:
     if 'add-scenario' in changed_id:
         if scenario_store is None:
             # create the first scenario_store
             scenario_store = loan_calc.save_scenario(df, scenario_name, None)
-
         else:
             # get new scenario, add to the scenario_store
             scenario_store = loan_calc.save_scenario(df, scenario_name, scenario_store)
@@ -289,32 +302,33 @@ def plot_amortization(price, deposit, payment, ir, apr, fee, freq, n_prepay,
     payback = f"{diff.years} Years, {diff.months} Months"
 
     # get prepayment summary for markdown summary
-    prepay_str_title = ""
-    prepay_str = ""
-    if prepay_store is not None and ('add-prepay' in changed_id):
-    # if 'add-prepay' in changed_id:
-        prepay_str_title = """**Prepayments** """
-        for prepayment in prepay_store:
-            prepay_str += "${:,.0f} on {} | ".format(prepayment['value'],prepayment['date'])
-
+    # prepay_str_title = ""
+    # prepay_str = ""
+    # if prepay_store is not None and ('add-prepay' in changed_id):
+    # # if 'add-prepay' in changed_id:
+    #     prepay_str_title = """**Prepayments** """
+    #     for prepayment in prepay_store:
+    #         prepay_str += "${:,.0f} on {} | ".format(prepayment['value'],prepayment['date'])
 
     # summary text for markdown
     md = f"""
     
     #### Mortgage Amortization  
     This calculator simulates mortgage amortization schedules based on the input parameters. 
-    Modify the parameters to meet your situation.  Provide a scenario name and add the scenario, 
-    then change parameters and compare the results.  You can save up to four different scenarios.   
+    To compare scenarios, provide a scenario name and save the scenario. Adjust paramters
+    to compare against the saved scenario.
     
     Prepayments can be added to view the impact of adding additional payments at specific dates.  
-    Add as many as you like, but keep in mind most mortgage lenders have a limit on the amount 
-    you can prepay per year without penalty.
-    
+
     **Total Interest:**${total_int:,.0f}  
     **Ending Equity:** ${end_equity:,.0f}  
     **Payback Period:** {payback}
     """
-    # create the plot
+    # don't update the figure or md when saving scenarios
+    if 'add-scenario' in changed_id:
+        return dash.no_update, dash.no_update, prepay_store, scenario_store
+
+    # create/update the plot
     fig = loan_calc.plot_amortization(df, end_date, yrs=[5, 10, 15])
 
     return fig, md, prepay_store, scenario_store
@@ -339,7 +353,7 @@ def plot_rent_vs_buy(rent, fee, tax, inv_rate, price, deposit, payment,
 
     # get the current date
     start_date = date.today()
-    
+
     # get the amortization schedule
     df = loan_calc.get_rent_vs_own(start_date, price, deposit, payment, 25,
                                    ir, apr, freq, re_fee, rent, inv_rate,
@@ -348,17 +362,17 @@ def plot_rent_vs_buy(rent, fee, tax, inv_rate, price, deposit, payment,
     fig = loan_calc.plot_rent_vs_own(df)
 
     # calculate values for the summary markdown
-    if freq=='m':
-        frequency='Monthly'
+    if freq == 'm':
+        frequency = 'Monthly'
         diff_payments = payment - rent
         taxes = tax/12
         main = fee
     else:
-        frequency='Bi-Weekly'
+        frequency = 'Bi-Weekly'
         diff_payments = payment - rent
         taxes = tax/24
         main = fee/2
-        
+
     md = f"""
     #### Rent Vs Buy
     This plot compares purchasing a home vs renting.  Owning a home requires additional 
@@ -373,7 +387,7 @@ def plot_rent_vs_buy(rent, fee, tax, inv_rate, price, deposit, payment,
     **Mortgage Equity**  
     Equity is calculated as the difference in home value (annual appreciation 
     rate of {apr:.2f}%), less the outstanding mortgage and real estate fees of
-    {re_fee:.2f}%.
+    {re_fee:.2f}% upon selling.
     """
     
     return fig, md
