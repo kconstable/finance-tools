@@ -9,10 +9,9 @@ Created on Thu Dec 30 11:36:06 2021
 import plotly.io as pio
 import dash
 from dash import html
+from dash import dcc
 import dash_bootstrap_components as dbc
-import dash_core_components as dcc
 from dash.dependencies import Input, Output, State
-from dash.exceptions import PreventUpdate
 from datetime import date
 from dateutil.relativedelta import relativedelta
 import loan_calc

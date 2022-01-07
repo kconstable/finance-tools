@@ -6,9 +6,8 @@ Created on Mon Dec 28 11:29:28 2020
 """
 
 import pandas as pd
-from datetime import timedelta, date, datetime
+from datetime import timedelta, date
 from dateutil.relativedelta import relativedelta
-import calendar
 import plotly.graph_objects as go
 import plotly.io as pio
 
@@ -291,11 +290,39 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     # sub-title text
     subtitle = f'Amortization:{diff_yrs} Years | Total Interest:${total_interest:,.0f}'
 
+    # get extra data for hovertext
+    cols = ['elapsed_yrs', 'equity', 'cum_interest']
+
+    # check for scenarios, add them to cols
+    scenarios = [c for c in df.columns if 'scenario' in c]
+    if len(scenarios) > 0:
+        for s in scenarios:
+            cols.append(s)
+
+    # create the custome text dataframe for hover data
+    customdata = df[cols]
+
+    # create hover data for the current parameters
+    hover_text = """<b>Current Values</b><br>
+                      <br><b>Mortgage:</b> $%{y:,.0f}
+                      <br><b>Cumulative Interest:</b> $%{customdata[2]:,.0f}
+                      <br><b>Equity:</b> $%{customdata[1]:,.0f}
+                      <br><b>Elapsed Years:</b> %{customdata[0]:.2f}
+                      <br>"""
+
+    # add hover data for scenarios
+    if len(scenarios) > 0:
+        hover_text += "<br><b>Scenarios-Mortgage</b>"
+        for i, s in enumerate(scenarios):
+            text = f"<br><b>{s}:</b> "
+            cust_text = f"customdata[{i + 3}]"
+            hover_text += text + "%{" + cust_text + ":,.0f}"
+
+    # this removes the default hover data
+    hover_text += "<extra></extra>"
+
     # create plots
     fig = go.Figure()
-
-    # get extra data for hovertext
-    customdata = list(zip(df['elapsed_yrs'], df.equity, df.cum_interest))
 
     # outstanding mortgage
     fig.add_trace(
@@ -306,11 +333,7 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
             line=dict(color='#536872'),
             fill='tozeroy',
             customdata=customdata,
-            hovertemplate="""<b>Mortgage:</b> $%{y:,.0f}
-                               <br><b>Cumulative Interest:</b> $%{customdata[2]:,.0f}
-                               <br><b>Equity:</b> $%{customdata[1]:,.0f}
-                               <br><b>Elapsed Years:</b> %{customdata[0]:.2f}
-                               <extra></extra>""",
+            hovertemplate = hover_text
         )
     )
 
@@ -336,7 +359,7 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
     )
 
     # add scenarios if provided
-    scenarios = [c for c in df.columns if 'scenario' in c]
+    # scenarios = [c for c in df.columns if 'scenario' in c]
     colors = ['#E95420', '#ff7f0e', 'gold', 'crimson']
     dash = ['dash', 'dot', 'dashdot', 'longdash']
     if len(scenarios) >= 1:
@@ -346,7 +369,8 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
                     name=scen,
                     x=df.date,
                     y=df[scen],
-                    line=dict(color=colors[i], dash=dash[i], width=3)
+                    line=dict(color=colors[i], dash=dash[i], width=3),
+                    hoverinfo='skip'
                 )
             )
 
@@ -362,9 +386,8 @@ def plot_amortization(df_amort, end_date, yrs=[5, 10, 15]):
             x=0.98),
         hoverlabel=dict(
                 bgcolor="#E95420",
-                font_size=16,
+                font_size=14,
                 )
-        
     )
 
     return fig
@@ -541,7 +564,7 @@ def plot_rent_vs_own(df):
             ),
         hoverlabel=dict(
             bgcolor="#E95420",
-            font_size=16,
+            font_size=14,
             )
     )
 
@@ -593,6 +616,10 @@ def save_scenario(df, scenario_name, scenarios=None):
         
     return df_new.to_dict('records')
 
+# df, end_date = get_amortization(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE, 'm', RE_FEES)
+# fig=plot_amortization(df, end_date)
+# fig.show()
 
-
-
+# df = get_rent_vs_own(START_DATE, PRICE, DEPOSIT, PAY, YRS, IR, APP_RATE, 'm', RE_FEES, MONTHLY_RENT, ANNUAL_INVEST_RATE, MONTHLY_FEES, ANNUAL_TAX)
+# fig=plot_rent_vs_own(df)
+# fig.show()
