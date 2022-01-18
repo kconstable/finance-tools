@@ -300,14 +300,6 @@ def plot_amortization(n_prepay, n_prepay_reset, n_scenario, n_scenario_reset,
     diff = relativedelta(end_date, df.date.min())
     payback = f"{diff.years} Years, {diff.months} Months"
 
-    # get prepayment summary for markdown summary
-    # prepay_str_title = ""
-    # prepay_str = ""
-    # if prepay_store is not None and ('add-prepay' in changed_id):
-    # # if 'add-prepay' in changed_id:
-    #     prepay_str_title = """**Prepayments** """
-    #     for prepayment in prepay_store:
-    #         prepay_str += "${:,.0f} on {} | ".format(prepayment['value'],prepayment['date'])
 
     # summary text for markdown
     md = f"""
@@ -393,4 +385,7 @@ def plot_rent_vs_buy(rent, fee, tax, inv_rate, price, deposit, payment,
 
 
 
-    
+
+if __name__ == '__main__':
+    # run the dash app
+    app.run_server(debug=False)
